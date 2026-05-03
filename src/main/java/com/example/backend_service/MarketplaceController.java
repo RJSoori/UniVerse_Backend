@@ -1,12 +1,12 @@
 package com.example.backend_service;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/marketplace")
-@CrossOrigin(origins = "*") // Allows your React frontend to connect
 public class MarketplaceController {
 
     @Autowired
@@ -22,6 +22,7 @@ public class MarketplaceController {
     }
 
     @GetMapping("/sellers")
+    @PreAuthorize("hasRole('ADMIN')")
     public List<Seller> getAllSellers() {
         return sellerRepository.findAll();
     }

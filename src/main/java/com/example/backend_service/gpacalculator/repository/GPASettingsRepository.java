@@ -7,5 +7,5 @@ import java.util.Optional;
 
 @Repository
 public interface GPASettingsRepository extends JpaRepository<GPASettings, String> {
-    Optional<GPASettings> findByStudentId(String studentId);
+    Optional<GPASettings> findByStudentId(Long studentId);
 }

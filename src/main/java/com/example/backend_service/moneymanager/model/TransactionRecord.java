@@ -12,6 +12,10 @@ import java.math.BigDecimal;
 @Table(name = "money_transactions")
 public class TransactionRecord extends BaseEntity {
 
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @Column(name = "student_id", nullable = false)
+    private Long studentId;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)
     private TransactionType type;
@@ -126,5 +130,13 @@ public class TransactionRecord extends BaseEntity {
 
     public void setRecurringId(String recurringId) {
         this.recurringId = recurringId;
+    }
+
+    public Long getStudentId() {
+        return studentId;
+    }
+
+    public void setStudentId(Long studentId) {
+        this.studentId = studentId;
     }
 }

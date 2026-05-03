@@ -16,8 +16,6 @@ public class MoneyManagerSeedService implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        if (settingsRepository.count() == 0) {
-            settingsRepository.save(new MoneyManagerSettings(false, "LKR", null));
-        }
+        // Per-student settings are created on first use in MoneyManagerController.
     }
 }

@@ -12,6 +12,10 @@ import java.math.BigDecimal;
 @Table(name = "money_budgets")
 public class BudgetPlan extends BaseEntity {
 
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @Column(name = "student_id", nullable = false)
+    private Long studentId;
+
     @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal monthlyIncome = BigDecimal.ZERO;
 
@@ -127,5 +131,13 @@ public class BudgetPlan extends BaseEntity {
 
     public void setLastUpdated(String lastUpdated) {
         this.lastUpdated = lastUpdated;
+    }
+
+    public Long getStudentId() {
+        return studentId;
+    }
+
+    public void setStudentId(Long studentId) {
+        this.studentId = studentId;
     }
 }

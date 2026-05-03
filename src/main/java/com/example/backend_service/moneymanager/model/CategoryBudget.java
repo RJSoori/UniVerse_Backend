@@ -10,6 +10,10 @@ import java.math.BigDecimal;
 @Table(name = "money_category_budgets")
 public class CategoryBudget extends BaseEntity {
 
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @Column(name = "student_id", nullable = false)
+    private Long studentId;
+
     @Column(nullable = false, length = 80)
     private String category;
 
@@ -50,5 +54,13 @@ public class CategoryBudget extends BaseEntity {
 
     public void setMonth(String month) {
         this.month = month;
+    }
+
+    public Long getStudentId() {
+        return studentId;
+    }
+
+    public void setStudentId(Long studentId) {
+        this.studentId = studentId;
     }
 }

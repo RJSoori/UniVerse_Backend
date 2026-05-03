@@ -10,6 +10,10 @@ import java.math.BigDecimal;
 @Table(name = "money_recurring_expenses")
 public class RecurringExpense extends BaseEntity {
 
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @Column(name = "student_id", nullable = false)
+    private Long studentId;
+
     @Column(nullable = false, length = 120)
     private String title;
 
@@ -111,5 +115,13 @@ public class RecurringExpense extends BaseEntity {
 
     public void setLastProcessedDate(String lastProcessedDate) {
         this.lastProcessedDate = lastProcessedDate;
+    }
+
+    public Long getStudentId() {
+        return studentId;
+    }
+
+    public void setStudentId(Long studentId) {
+        this.studentId = studentId;
     }
 }

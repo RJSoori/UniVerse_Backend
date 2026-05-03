@@ -1,42 +1,31 @@
 package com.example.backend_service;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import com.example.backend_service.auth.dto.UserDto;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+
 import java.util.List;
 
-@CrossOrigin(origins = {"http://localhost:5173", "http://localhost:5174"})
+/**
+ * Auth has moved to {@link com.example.backend_service.auth.AuthController} —
+ * legacy /login and /register endpoints have been removed.
+ *
+ * The remaining listing endpoint is admin-gated and CORS is governed centrally
+ * by {@link com.example.backend_service.security.CorsConfig}.
+ */
 @RestController
 @RequestMapping("/api/students")
 public class StudentController {
 
-    @Autowired
-    private StudentRepository studentRepository;
+    private final StudentRepository studentRepository;
 
-    @PostMapping("/register")
-    public String registerStudent(@RequestBody Student student) {
-        studentRepository.save(student);
-        return "Registration Successful!";
+    public StudentController(StudentRepository studentRepository) {
+        this.studentRepository = studentRepository;
     }
 
     @GetMapping("/all")
-    public List<Student> getAllStudents() {
-        return studentRepository.findAll();
-    }
-
-    @PostMapping("/login")
-    public String loginStudent(@RequestBody Student loginData) {
-        // We check the database for the user
-        return studentRepository.findAll().stream()
-            .filter(s -> s.getUsername().equals(loginData.getUsername()))
-            .findFirst()
-            .map(student -> {
-                // If the user exists, check the password
-                if (student.getPassword().equals(loginData.getPassword())) {
-                    return "Login Successful!";
-                } else {
-                    return "Invalid Password";
-                }
-            })
-            .orElse("User Not Found");
+    @PreAuthorize("hasRole('ADMIN')")
+    public List<UserDto> getAllStudents() {
+        return studentRepository.findAll().stream().map(UserDto::from).toList();
     }
 }

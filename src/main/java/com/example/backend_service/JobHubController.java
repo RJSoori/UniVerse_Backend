@@ -1,12 +1,12 @@
 package com.example.backend_service;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/jobs")
-@CrossOrigin(origins = "*") // Allows your React frontend to connect
 public class JobHubController {
 
     @Autowired
@@ -22,6 +22,7 @@ public class JobHubController {
     }
 
     @GetMapping("/recruiters")
+    @PreAuthorize("hasRole('ADMIN')")
     public List<Recruiter> getAllRecruiters() {
         return recruiterRepository.findAll();
     }

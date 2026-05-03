@@ -9,7 +9,7 @@ import java.util.List;
 public interface GPASubjectRepository extends JpaRepository<GPASubject, String> {
     List<GPASubject> findBySemesterId(String semesterId);
 
-    List<GPASubject> findByStudentId(String studentId);
+    List<GPASubject> findByStudentId(Long studentId);
 
-    List<GPASubject> findByStudentIdAndIsGpaTrue(String studentId);
+    List<GPASubject> findByStudentIdAndIsGpaTrue(Long studentId);
 }

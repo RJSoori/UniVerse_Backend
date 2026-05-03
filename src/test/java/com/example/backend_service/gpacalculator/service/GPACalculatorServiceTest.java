@@ -53,7 +53,7 @@ public class GPACalculatorServiceTest {
 
     @Test
     public void testClassifyDegreeClass() {
-        GPASettings settings = new GPASettings("test-student");
+        GPASettings settings = new GPASettings(1L);
         assertEquals("First Class", gpaCalculatorService.classifyDegreeClass(3.7, settings));
         assertEquals("Second Upper", gpaCalculatorService.classifyDegreeClass(3.3, settings));
         assertEquals("Second Lower", gpaCalculatorService.classifyDegreeClass(3.0, settings));
@@ -62,7 +62,7 @@ public class GPACalculatorServiceTest {
 
     @Test
     public void testGetOrCreateSettings() {
-        String testStudentId = "test-student-" + System.currentTimeMillis();
+        Long testStudentId = System.currentTimeMillis();
         GPASettings settings = gpaCalculatorService.getOrCreateSettings(testStudentId);
         assertEquals(testStudentId, settings.getStudentId());
         assertEquals(GradeScaleMode.STANDARD_4_0, settings.getGpaScale());

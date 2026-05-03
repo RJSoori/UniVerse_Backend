@@ -37,7 +37,7 @@ public class GPACalculatorService {
     /**
      * Get or create default GPA settings for a student.
      */
-    public GPASettings getOrCreateSettings(String studentId) {
+    public GPASettings getOrCreateSettings(Long studentId) {
         return settingsRepository.findByStudentId(studentId)
                 .orElse(new GPASettings(studentId));
     }
@@ -124,7 +124,7 @@ public class GPACalculatorService {
      * @param settings  the GPA settings (for scale mode)
      * @return the CGPA value
      */
-    public double calculateCGPA(String studentId, GPASettings settings) {
+    public double calculateCGPA(Long studentId, GPASettings settings) {
         List<GPASemester> semesters = semesterRepository.findByStudentId(studentId);
         if (semesters.isEmpty()) {
             return 0.0;
@@ -186,7 +186,7 @@ public class GPACalculatorService {
      * @param settings            the GPA settings
      * @return the required SGPA for next semester
      */
-    public double calculateRequiredSGPA(String studentId, double targetCgpa, double nextSemesterCredits,
+    public double calculateRequiredSGPA(Long studentId, double targetCgpa, double nextSemesterCredits,
             GPASettings settings) {
         List<GPASemester> semesters = semesterRepository.findByStudentId(studentId);
 
@@ -230,7 +230,7 @@ public class GPACalculatorService {
      * @return probability as a percentage (0-100)
      */
     public double predictDegreeClassProbability(
-            String studentId,
+            Long studentId,
             String targetDegreeClass,
             List<Double> nextSemesterSubjects,
             GPASettings settings,

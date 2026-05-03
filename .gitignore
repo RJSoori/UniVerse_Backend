@@ -37,3 +37,7 @@ build/
 **/.DS_Store
 
 .env
+
+# Database dumps containing real PII / plaintext passwords. Never commit.
+universe_db.sql
+*.sql.dump

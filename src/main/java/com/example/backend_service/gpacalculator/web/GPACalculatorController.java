@@ -1,16 +1,17 @@
 package com.example.backend_service.gpacalculator.web;
 
-import com.example.backend_service.gpacalculator.model.GradeEnum;
+import com.example.backend_service.common.exception.NotFoundException;
 import com.example.backend_service.gpacalculator.model.GPASemester;
 import com.example.backend_service.gpacalculator.model.GPASettings;
 import com.example.backend_service.gpacalculator.model.GPASubject;
+import com.example.backend_service.gpacalculator.model.GradeEnum;
 import com.example.backend_service.gpacalculator.repository.GPASemesterRepository;
 import com.example.backend_service.gpacalculator.repository.GPASettingsRepository;
 import com.example.backend_service.gpacalculator.repository.GPASubjectRepository;
 import com.example.backend_service.gpacalculator.service.GPACalculatorService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -24,15 +25,14 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 /**
  * REST Controller for GPA Calculator endpoints.
  * Provides CRUD operations for semesters/subjects and analytics calculations.
+ * studentId is always derived from the JWT principal — never from path/request params.
  */
 @RestController
 @RequestMapping("/api/gpa")
-@CrossOrigin(origins = { "http://localhost:5173", "http://localhost:3000" })
 public class GPACalculatorController {
 
     private final GPACalculatorService gpaCalculatorService;
@@ -55,22 +55,22 @@ public class GPACalculatorController {
     // Settings Endpoints
     // ============================================================================
 
-    @GetMapping("/settings/{studentId}")
-    public ResponseEntity<GPASettings> getSettings(@PathVariable String studentId) {
-        GPASettings settings = gpaCalculatorService.getOrCreateSettings(studentId);
+    @GetMapping("/settings")
+    public ResponseEntity<GPASettings> getSettings(@AuthenticationPrincipal Long authStudentId) {
+        GPASettings settings = gpaCalculatorService.getOrCreateSettings(authStudentId);
         if (settings.getId() == null) {
             settings = settingsRepository.save(settings);
         }
         return ResponseEntity.ok(settings);
     }
 
-    @PutMapping("/settings/{studentId}")
+    @PutMapping("/settings")
     public ResponseEntity<GPASettings> updateSettings(
-            @PathVariable String studentId,
+            @AuthenticationPrincipal Long authStudentId,
             @RequestBody GPASettings updatedSettings) {
-        GPASettings settings = gpaCalculatorService.getOrCreateSettings(studentId);
+        GPASettings settings = gpaCalculatorService.getOrCreateSettings(authStudentId);
         if (settings.getId() == null) {
-            settings.setStudentId(studentId);
+            settings.setStudentId(authStudentId);
         }
         if (updatedSettings.getGpaScale() != null) {
             settings.setGpaScale(updatedSettings.getGpaScale());
@@ -99,32 +99,39 @@ public class GPACalculatorController {
     // ============================================================================
 
     @PostMapping("/semesters")
-    public ResponseEntity<GPASemester> createSemester(@RequestBody GPASemester semester) {
+    public ResponseEntity<GPASemester> createSemester(
+            @AuthenticationPrincipal Long authStudentId,
+            @RequestBody GPASemester semester) {
+        semester.setId(null); // reject client-supplied id — prevents JPA merge overwrite
+        semester.setStudentId(authStudentId);
         GPASemester saved = semesterRepository.save(semester);
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
 
-    @GetMapping("/semesters/{studentId}")
-    public ResponseEntity<List<GPASemester>> getSemestersByStudent(@PathVariable String studentId) {
-        List<GPASemester> semesters = semesterRepository.findByStudentIdOrderByYearDescSemesterDesc(studentId);
+    @GetMapping("/semesters")
+    public ResponseEntity<List<GPASemester>> getSemestersByStudent(@AuthenticationPrincipal Long authStudentId) {
+        List<GPASemester> semesters = semesterRepository.findByStudentIdOrderByYearDescSemesterDesc(authStudentId);
         return ResponseEntity.ok(semesters);
     }
 
-    @GetMapping("/semesters/{semesterId}/details")
-    public ResponseEntity<GPASemester> getSemesterDetails(@PathVariable String semesterId) {
-        Optional<GPASemester> semester = semesterRepository.findById(semesterId);
-        return semester.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
+    @GetMapping("/semesters/{semesterId}")
+    public ResponseEntity<GPASemester> getSemesterDetails(
+            @AuthenticationPrincipal Long authStudentId,
+            @PathVariable String semesterId) {
+        GPASemester semester = semesterRepository.findById(semesterId)
+                .filter(s -> s.getStudentId().equals(authStudentId))
+                .orElseThrow(NotFoundException::new);
+        return ResponseEntity.ok(semester);
     }
 
     @PutMapping("/semesters/{semesterId}")
     public ResponseEntity<GPASemester> updateSemester(
+            @AuthenticationPrincipal Long authStudentId,
             @PathVariable String semesterId,
             @RequestBody GPASemester updatedSemester) {
-        Optional<GPASemester> existing = semesterRepository.findById(semesterId);
-        if (existing.isEmpty()) {
-            return ResponseEntity.notFound().build();
-        }
-        GPASemester semester = existing.get();
+        GPASemester semester = semesterRepository.findById(semesterId)
+                .filter(s -> s.getStudentId().equals(authStudentId))
+                .orElseThrow(NotFoundException::new);
         if (updatedSemester.getYear() != null) {
             semester.setYear(updatedSemester.getYear());
         }
@@ -136,7 +143,12 @@ public class GPACalculatorController {
     }
 
     @DeleteMapping("/semesters/{semesterId}")
-    public ResponseEntity<Void> deleteSemester(@PathVariable String semesterId) {
+    public ResponseEntity<Void> deleteSemester(
+            @AuthenticationPrincipal Long authStudentId,
+            @PathVariable String semesterId) {
+        semesterRepository.findById(semesterId)
+                .filter(s -> s.getStudentId().equals(authStudentId))
+                .orElseThrow(NotFoundException::new);
         semesterRepository.deleteById(semesterId);
         return ResponseEntity.noContent().build();
     }
@@ -146,26 +158,43 @@ public class GPACalculatorController {
     // ============================================================================
 
     @PostMapping("/subjects")
-    public ResponseEntity<GPASubject> createSubject(@RequestBody GPASubject subject) {
+    public ResponseEntity<GPASubject> createSubject(
+            @AuthenticationPrincipal Long authStudentId,
+            @RequestBody SubjectRequest request) {
+        String semesterId = request.semester() == null ? null : request.semester().id();
+        GPASemester semester = semesterRepository.findById(semesterId)
+                .filter(s -> s.getStudentId().equals(authStudentId))
+                .orElseThrow(NotFoundException::new);
+        GPASubject subject = new GPASubject();
+        subject.setName(request.name());
+        subject.setCredits(request.credits());
+        subject.setGrade(request.grade());
+        subject.setIsGpa(request.isGpa() == null ? Boolean.TRUE : request.isGpa());
+        subject.setStudentId(authStudentId);
+        subject.setSemester(semester);
         GPASubject saved = subjectRepository.save(subject);
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
 
     @GetMapping("/semesters/{semesterId}/subjects")
-    public ResponseEntity<List<GPASubject>> getSubjectsBySemester(@PathVariable String semesterId) {
+    public ResponseEntity<List<GPASubject>> getSubjectsBySemester(
+            @AuthenticationPrincipal Long authStudentId,
+            @PathVariable String semesterId) {
+        semesterRepository.findById(semesterId)
+                .filter(s -> s.getStudentId().equals(authStudentId))
+                .orElseThrow(NotFoundException::new);
         List<GPASubject> subjects = subjectRepository.findBySemesterId(semesterId);
         return ResponseEntity.ok(subjects);
     }
 
     @PutMapping("/subjects/{subjectId}")
     public ResponseEntity<GPASubject> updateSubject(
+            @AuthenticationPrincipal Long authStudentId,
             @PathVariable String subjectId,
             @RequestBody GPASubject updatedSubject) {
-        Optional<GPASubject> existing = subjectRepository.findById(subjectId);
-        if (existing.isEmpty()) {
-            return ResponseEntity.notFound().build();
-        }
-        GPASubject subject = existing.get();
+        GPASubject subject = subjectRepository.findById(subjectId)
+                .filter(s -> s.getSemester().getStudentId().equals(authStudentId))
+                .orElseThrow(NotFoundException::new);
         if (updatedSubject.getName() != null) {
             subject.setName(updatedSubject.getName());
         }
@@ -183,7 +212,12 @@ public class GPACalculatorController {
     }
 
     @DeleteMapping("/subjects/{subjectId}")
-    public ResponseEntity<Void> deleteSubject(@PathVariable String subjectId) {
+    public ResponseEntity<Void> deleteSubject(
+            @AuthenticationPrincipal Long authStudentId,
+            @PathVariable String subjectId) {
+        subjectRepository.findById(subjectId)
+                .filter(s -> s.getSemester().getStudentId().equals(authStudentId))
+                .orElseThrow(NotFoundException::new);
         subjectRepository.deleteById(subjectId);
         return ResponseEntity.noContent().build();
     }
@@ -193,29 +227,29 @@ public class GPACalculatorController {
     // ============================================================================
 
     @GetMapping("/analytics/sgpa/{semesterId}")
-    public ResponseEntity<Map<String, Double>> calculateSGPA(@PathVariable String semesterId) {
-        Optional<GPASemester> semester = semesterRepository.findById(semesterId);
-        if (semester.isEmpty()) {
-            return ResponseEntity.notFound().build();
-        }
-        String studentId = semester.get().getStudentId();
-        GPASettings settings = gpaCalculatorService.getOrCreateSettings(studentId);
+    public ResponseEntity<Map<String, Double>> calculateSGPA(
+            @AuthenticationPrincipal Long authStudentId,
+            @PathVariable String semesterId) {
+        GPASemester semester = semesterRepository.findById(semesterId)
+                .filter(s -> s.getStudentId().equals(authStudentId))
+                .orElseThrow(NotFoundException::new);
+        GPASettings settings = gpaCalculatorService.getOrCreateSettings(authStudentId);
         if (settings.getId() == null) {
             settings = settingsRepository.save(settings);
         }
-        double sgpa = gpaCalculatorService.calculateSGPA(semester.get(), settings);
+        double sgpa = gpaCalculatorService.calculateSGPA(semester, settings);
         Map<String, Double> response = new HashMap<>();
         response.put("sgpa", sgpa);
         return ResponseEntity.ok(response);
     }
 
-    @GetMapping("/analytics/cgpa/{studentId}")
-    public ResponseEntity<Map<String, Double>> calculateCGPA(@PathVariable String studentId) {
-        GPASettings settings = gpaCalculatorService.getOrCreateSettings(studentId);
+    @GetMapping("/analytics/cgpa")
+    public ResponseEntity<Map<String, Double>> calculateCGPA(@AuthenticationPrincipal Long authStudentId) {
+        GPASettings settings = gpaCalculatorService.getOrCreateSettings(authStudentId);
         if (settings.getId() == null) {
             settings = settingsRepository.save(settings);
         }
-        double cgpa = gpaCalculatorService.calculateCGPA(studentId, settings);
+        double cgpa = gpaCalculatorService.calculateCGPA(authStudentId, settings);
         String degreeClass = gpaCalculatorService.classifyDegreeClass(cgpa, settings);
         Map<String, Double> response = new HashMap<>();
         response.put("cgpa", cgpa);
@@ -223,13 +257,13 @@ public class GPACalculatorController {
         return ResponseEntity.ok(response);
     }
 
-    @GetMapping("/analytics/degree-class/{studentId}")
-    public ResponseEntity<Map<String, String>> getDegreeClass(@PathVariable String studentId) {
-        GPASettings settings = gpaCalculatorService.getOrCreateSettings(studentId);
+    @GetMapping("/analytics/degree-class")
+    public ResponseEntity<Map<String, String>> getDegreeClass(@AuthenticationPrincipal Long authStudentId) {
+        GPASettings settings = gpaCalculatorService.getOrCreateSettings(authStudentId);
         if (settings.getId() == null) {
             settings = settingsRepository.save(settings);
         }
-        double cgpa = gpaCalculatorService.calculateCGPA(studentId, settings);
+        double cgpa = gpaCalculatorService.calculateCGPA(authStudentId, settings);
         String degreeClass = gpaCalculatorService.classifyDegreeClass(cgpa, settings);
         Map<String, String> response = new HashMap<>();
         response.put("degreeClass", degreeClass);
@@ -239,14 +273,14 @@ public class GPACalculatorController {
 
     @PostMapping("/analytics/required-sgpa")
     public ResponseEntity<Map<String, Double>> calculateRequiredSGPA(
-            @RequestParam String studentId,
+            @AuthenticationPrincipal Long authStudentId,
             @RequestParam double targetCgpa,
             @RequestParam(defaultValue = "18.0") double nextSemesterCredits) {
-        GPASettings settings = gpaCalculatorService.getOrCreateSettings(studentId);
+        GPASettings settings = gpaCalculatorService.getOrCreateSettings(authStudentId);
         if (settings.getId() == null) {
             settings = settingsRepository.save(settings);
         }
-        double requiredSgpa = gpaCalculatorService.calculateRequiredSGPA(studentId, targetCgpa, nextSemesterCredits,
+        double requiredSgpa = gpaCalculatorService.calculateRequiredSGPA(authStudentId, targetCgpa, nextSemesterCredits,
                 settings);
         Map<String, Double> response = new HashMap<>();
         response.put("requiredSgpa", requiredSgpa);
@@ -255,16 +289,16 @@ public class GPACalculatorController {
 
     @PostMapping("/analytics/prediction")
     public ResponseEntity<Map<String, Object>> predictDegreeClass(
-            @RequestParam String studentId,
+            @AuthenticationPrincipal Long authStudentId,
             @RequestParam String targetDegreeClass,
             @RequestParam(defaultValue = "1000") int simulations,
             @RequestBody List<Double> nextSemesterSubjects) {
-        GPASettings settings = gpaCalculatorService.getOrCreateSettings(studentId);
+        GPASettings settings = gpaCalculatorService.getOrCreateSettings(authStudentId);
         if (settings.getId() == null) {
             settings = settingsRepository.save(settings);
         }
         double probability = gpaCalculatorService.predictDegreeClassProbability(
-                studentId, targetDegreeClass, nextSemesterSubjects, settings, simulations);
+                authStudentId, targetDegreeClass, nextSemesterSubjects, settings, simulations);
         Map<String, Object> response = new HashMap<>();
         response.put("probability", probability);
         response.put("targetDegreeClass", targetDegreeClass);
@@ -277,5 +311,16 @@ public class GPACalculatorController {
         response.put("status", "UP");
         response.put("service", "GPA Calculator API");
         return ResponseEntity.ok(response);
+    }
+
+    private record SubjectRequest(
+            String name,
+            Double credits,
+            GradeEnum grade,
+            Boolean isGpa,
+            SemesterRef semester) {
+    }
+
+    private record SemesterRef(String id) {
     }
 }

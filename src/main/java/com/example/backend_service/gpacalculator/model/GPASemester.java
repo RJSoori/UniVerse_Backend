@@ -20,8 +20,8 @@ public class GPASemester extends BaseEntity {
     @Column(nullable = false, length = 20)
     private String semester;
 
-    @Column(nullable = false, length = 36)
-    private String studentId;
+    @Column(name = "student_id", nullable = false)
+    private Long studentId;
 
     @OneToMany(mappedBy = "semester", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
     private List<GPASubject> subjects = new ArrayList<>();
@@ -29,7 +29,7 @@ public class GPASemester extends BaseEntity {
     public GPASemester() {
     }
 
-    public GPASemester(String year, String semester, String studentId) {
+    public GPASemester(String year, String semester, Long studentId) {
         this.year = year;
         this.semester = semester;
         this.studentId = studentId;
@@ -51,11 +51,11 @@ public class GPASemester extends BaseEntity {
         this.semester = semester;
     }
 
-    public String getStudentId() {
+    public Long getStudentId() {
         return studentId;
     }
 
-    public void setStudentId(String studentId) {
+    public void setStudentId(Long studentId) {
         this.studentId = studentId;
     }
 

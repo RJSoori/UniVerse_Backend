@@ -11,8 +11,8 @@ import jakarta.persistence.Table;
 @Table(name = "gpa_settings")
 public class GPASettings extends BaseEntity {
 
-    @Column(nullable = false, length = 36)
-    private String studentId;
+    @Column(name = "student_id", nullable = false)
+    private Long studentId;
 
     @Column(nullable = false)
     @Enumerated(EnumType.STRING)
@@ -37,15 +37,15 @@ public class GPASettings extends BaseEntity {
     public GPASettings() {
     }
 
-    public GPASettings(String studentId) {
+    public GPASettings(Long studentId) {
         this.studentId = studentId;
     }
 
-    public String getStudentId() {
+    public Long getStudentId() {
         return studentId;
     }
 
-    public void setStudentId(String studentId) {
+    public void setStudentId(Long studentId) {
         this.studentId = studentId;
     }
 

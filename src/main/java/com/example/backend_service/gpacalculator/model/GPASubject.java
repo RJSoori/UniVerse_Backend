@@ -1,6 +1,7 @@
 package com.example.backend_service.gpacalculator.model;
 
 import com.example.backend_service.common.model.BaseEntity;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -27,17 +28,18 @@ public class GPASubject extends BaseEntity {
     @Column(nullable = false)
     private Boolean isGpa = true;
 
-    @Column(nullable = false, length = 36)
-    private String studentId;
+    @Column(name = "student_id", nullable = false)
+    private Long studentId;
 
     @ManyToOne(optional = false)
     @JoinColumn(name = "semester_id", nullable = false, foreignKey = @ForeignKey(name = "fk_subject_semester"))
+    @JsonIgnoreProperties("subjects")
     private GPASemester semester;
 
     public GPASubject() {
     }
 
-    public GPASubject(String name, Double credits, GradeEnum grade, Boolean isGpa, String studentId,
+    public GPASubject(String name, Double credits, GradeEnum grade, Boolean isGpa, Long studentId,
             GPASemester semester) {
         this.name = name;
         this.credits = credits;
@@ -79,11 +81,11 @@ public class GPASubject extends BaseEntity {
         this.isGpa = isGpa;
     }
 
-    public String getStudentId() {
+    public Long getStudentId() {
         return studentId;
     }
 
-    public void setStudentId(String studentId) {
+    public void setStudentId(Long studentId) {
         this.studentId = studentId;
     }
 

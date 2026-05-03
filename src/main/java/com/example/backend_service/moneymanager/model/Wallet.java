@@ -12,6 +12,10 @@ import java.math.BigDecimal;
 @Table(name = "money_wallets")
 public class Wallet extends BaseEntity {
 
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    @Column(name = "student_id", nullable = false)
+    private Long studentId;
+
     @Column(nullable = false)
     private String name;
 
@@ -77,5 +81,13 @@ public class Wallet extends BaseEntity {
 
     public void setIncludeInTotal(boolean includeInTotal) {
         this.includeInTotal = includeInTotal;
+    }
+
+    public Long getStudentId() {
+        return studentId;
+    }
+
+    public void setStudentId(Long studentId) {
+        this.studentId = studentId;
     }
 }
