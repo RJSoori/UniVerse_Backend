@@ -12,6 +12,9 @@ public class Job {
     private String description;
     private String externalApplicationUrl; // Redirects students outside
 
+    @Enumerated(EnumType.STRING)
+    private JobStatus status = JobStatus.PENDING;
+
     @ManyToOne
     @JoinColumn(name = "recruiter_id")
     private Recruiter recruiter;
@@ -27,6 +30,8 @@ public class Job {
     public void setDescription(String description) { this.description = description; }
     public String getExternalApplicationUrl() { return externalApplicationUrl; }
     public void setExternalApplicationUrl(String externalApplicationUrl) { this.externalApplicationUrl = externalApplicationUrl; }
+    public JobStatus getStatus() { return status; }
+    public void setStatus(JobStatus status) { this.status = status; }
     public Recruiter getRecruiter() { return recruiter; }
     public void setRecruiter(Recruiter recruiter) { this.recruiter = recruiter; }
 }

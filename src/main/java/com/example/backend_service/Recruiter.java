@@ -1,6 +1,11 @@
 package com.example.backend_service;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
 
 @Entity
 public class Recruiter {
@@ -11,6 +16,14 @@ public class Recruiter {
     private String companyName;
     private String email;
     private String contactPerson;
+    private String password;
+    private String businessRegistrationUrl;
+    private String orgLogoUrl;
+    private String authLetterUrl;
+    private String accountType = "company";
+
+    @Enumerated(EnumType.STRING)
+    private RecruiterStatus status = RecruiterStatus.PENDING;
 
     public Recruiter() {}
 
@@ -23,4 +36,16 @@ public class Recruiter {
     public void setEmail(String email) { this.email = email; }
     public String getContactPerson() { return contactPerson; }
     public void setContactPerson(String contactPerson) { this.contactPerson = contactPerson; }
+    public String getPassword() { return password; }
+    public void setPassword(String password) { this.password = password; }
+    public String getBusinessRegistrationUrl() { return businessRegistrationUrl; }
+    public void setBusinessRegistrationUrl(String businessRegistrationUrl) { this.businessRegistrationUrl = businessRegistrationUrl; }
+    public String getOrgLogoUrl() { return orgLogoUrl; }
+    public void setOrgLogoUrl(String orgLogoUrl) { this.orgLogoUrl = orgLogoUrl; }
+    public String getAuthLetterUrl() { return authLetterUrl; }
+    public void setAuthLetterUrl(String authLetterUrl) { this.authLetterUrl = authLetterUrl; }
+    public String getAccountType() { return accountType; }
+    public void setAccountType(String accountType) { this.accountType = accountType; }
+    public RecruiterStatus getStatus() { return status; }
+    public void setStatus(RecruiterStatus status) { this.status = status; }
 }
