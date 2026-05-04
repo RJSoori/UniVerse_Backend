@@ -14,7 +14,7 @@ import java.util.List;
 @Table(name = "gpa_semesters")
 public class GPASemester extends BaseEntity {
 
-    @Column(name = "semester_year", nullable = false, length = 4)
+    @Column(name = "semester_year", nullable = false, length = 20)
     private String year;
 
     @Column(nullable = false, length = 20)
