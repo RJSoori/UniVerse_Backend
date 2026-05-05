@@ -1,8 +1,14 @@
-package com.example.backend_service;
+package com.example.backend_service.marketplace.controller;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+
+import com.example.backend_service.marketplace.model.MarketplaceItem;
+import com.example.backend_service.marketplace.model.Seller;
+import com.example.backend_service.marketplace.repository.MarketplaceItemRepository;
+import com.example.backend_service.marketplace.repository.SellerRepository;
+
 import java.util.List;
 
 @RestController
