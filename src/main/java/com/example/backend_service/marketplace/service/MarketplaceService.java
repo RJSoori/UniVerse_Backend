@@ -3,6 +3,8 @@ package com.example.backend_service.marketplace.service;
 import com.example.backend_service.common.exception.NotFoundException;
 import com.example.backend_service.marketplace.dto.MarketplaceItemRequest;
 import com.example.backend_service.marketplace.dto.MarketplaceItemResponse;
+import com.example.backend_service.marketplace.dto.SellerAuthResponse;
+import com.example.backend_service.marketplace.dto.SellerLoginRequest;
 import com.example.backend_service.marketplace.dto.SellerRequest;
 import com.example.backend_service.marketplace.dto.SellerResponse;
 import com.example.backend_service.marketplace.model.MarketplaceItem;
@@ -10,6 +12,7 @@ import com.example.backend_service.marketplace.model.Seller;
 import com.example.backend_service.marketplace.repository.MarketplaceItemRepository;
 import com.example.backend_service.marketplace.repository.SellerRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -24,17 +27,48 @@ public class MarketplaceService {
     @Autowired
     private SellerRepository sellerRepository;
 
-    // --- Seller Methods ---
-    public SellerResponse createSeller(SellerRequest request) {
+    @Autowired
+    private SellerJwtService sellerJwtService;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    // --- Seller Auth Methods ---
+    public SellerAuthResponse registerSeller(SellerRequest request) {
+        if (sellerRepository.findByEmail(request.getEmail()).isPresent()) {
+            throw new RuntimeException("Email already registered");
+        }
+        if (sellerRepository.findByUsername(request.getUsername()).isPresent()) {
+            throw new RuntimeException("Username already taken");
+        }
         Seller seller = new Seller();
         seller.setStoreName(request.getStoreName());
         seller.setEmail(request.getEmail());
+        seller.setUsername(request.getUsername());
+        seller.setPassword(passwordEncoder.encode(request.getPassword()));
         seller.setPhone(request.getPhone());
         seller.setDescription(request.getDescription());
         Seller saved = sellerRepository.save(seller);
-        return toSellerResponse(saved);
+        String token = sellerJwtService.issue(saved.getId());
+        return new SellerAuthResponse(token, toSellerResponse(saved));
     }
 
+    public SellerAuthResponse loginSeller(SellerLoginRequest request) {
+        Seller seller = sellerRepository.findByUsername(request.getUsername())
+                .orElseThrow(() -> new RuntimeException("Invalid username or password"));
+        if (!passwordEncoder.matches(request.getPassword(), seller.getPassword())) {
+            throw new RuntimeException("Invalid username or password");
+        }
+        String token = sellerJwtService.issue(seller.getId());
+        return new SellerAuthResponse(token, toSellerResponse(seller));
+    }
+
+    public SellerResponse getSellerByToken(String token) {
+        Long sellerId = sellerJwtService.parse(token);
+        return getSellerById(sellerId);
+    }
+
+    // --- Seller Methods ---
     public List<SellerResponse> getAllSellers() {
         return sellerRepository.findAll()
                 .stream()
@@ -66,6 +100,13 @@ public class MarketplaceService {
 
     public List<MarketplaceItemResponse> getAllItems() {
         return itemRepository.findAll()
+                .stream()
+                .map(this::toItemResponse)
+                .collect(Collectors.toList());
+    }
+
+    public List<MarketplaceItemResponse> getItemsBySeller(Long sellerId) {
+        return itemRepository.findBySellerId(sellerId)
                 .stream()
                 .map(this::toItemResponse)
                 .collect(Collectors.toList());
