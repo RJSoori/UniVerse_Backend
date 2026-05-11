@@ -1,4 +1,7 @@
-package com.example.backend_service;
+package com.example.backend_service.jobhub.model;
+
+import com.example.backend_service.RecruiterStatus;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -16,6 +19,7 @@ public class Recruiter {
     private String companyName;
     private String email;
     private String contactPerson;
+    @JsonIgnore
     private String password;
     private String businessRegistrationUrl;
     private String orgLogoUrl;

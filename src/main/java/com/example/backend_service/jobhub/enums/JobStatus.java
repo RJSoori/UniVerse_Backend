@@ -1,4 +1,4 @@
-package com.example.backend_service;
+package com.example.backend_service.jobhub.enums;
 
 public enum JobStatus {
     PENDING,

@@ -1,11 +1,14 @@
-package com.example.backend_service;
+package com.example.backend_service.jobhub.controller;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -13,10 +16,20 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.http.HttpStatus;
 
 import com.example.backend_service.common.exception.UnauthorizedException;
+import com.example.backend_service.jobhub.repository.JobRepository;
+import com.example.backend_service.jobhub.repository.RecruiterRepository;
+import com.example.backend_service.jobhub.enums.JobStatus;
+import com.example.backend_service.jobhub.model.Job;
+import com.example.backend_service.RecruiterStatus;
+import com.example.backend_service.jobhub.model.Recruiter;
+import com.example.backend_service.AzureBlobService;
+import com.example.backend_service.jobhub.dto.JobRequest;
 
 @RestController
 @RequestMapping("/api/jobs")
@@ -96,10 +109,20 @@ public class JobHubController {
 
     // --- Job Endpoints ---
     @PostMapping("/post")
-    public Job postJob(@RequestBody Job job) {
-        // Check if recruiter is verified
-        Recruiter recruiter = recruiterRepository.findById(job.getRecruiter().getId())
+    public Job postJob(@RequestBody JobRequest request) {
+        Recruiter recruiter = recruiterRepository.findById(request.recruiterId())
                 .orElseThrow(() -> new RuntimeException("Recruiter not found"));
+
+        Job job = new Job();
+        job.setTitle(request.title());
+        job.setDescription(request.description());
+        job.setRequirements(request.requirements());
+        job.setSkills(request.skills());
+        job.setSalaryInfo(request.salaryInfo());
+        job.setWorkType(request.workType());
+        job.setEmploymentType(request.employmentType());
+        job.setPostedAt(request.postedAt());
+        job.setRecruiter(recruiter);
         if (recruiter.getStatus() == RecruiterStatus.VERIFIED) {
             job.setStatus(JobStatus.APPROVED);
         } else {
@@ -111,6 +134,20 @@ public class JobHubController {
     @GetMapping("/all")
     public List<Job> getAllJobs() {
         return jobRepository.findByStatus(JobStatus.APPROVED);
+    }
+
+    @GetMapping("/recruiters/{id}/jobs")
+    public List<Job> getRecruiterJobs(@PathVariable Long id) {
+        return jobRepository.findByRecruiterId(id);
+    }
+
+    @DeleteMapping("/recruiters/{recruiterId}/jobs/{jobId}")
+    @Transactional
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteRecruiterJob(@PathVariable Long recruiterId, @PathVariable Long jobId) {
+        Job job = jobRepository.findByIdAndRecruiterId(jobId, recruiterId)
+                .orElseThrow(() -> new RuntimeException("Job not found or unauthorized deletion attempt"));
+        jobRepository.delete(job);
     }
 
     // --- Admin Endpoints ---
