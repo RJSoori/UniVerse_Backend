@@ -18,9 +18,11 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
+    private final SellerJwtAuthFilter sellerJwtAuthFilter;
 
-    public SecurityConfig(JwtAuthFilter jwtAuthFilter) {
+    public SecurityConfig(JwtAuthFilter jwtAuthFilter, SellerJwtAuthFilter sellerJwtAuthFilter) {
         this.jwtAuthFilter = jwtAuthFilter;
+        this.sellerJwtAuthFilter = sellerJwtAuthFilter;
     }
 
     @Bean
@@ -37,11 +39,13 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/auth/register", "/api/auth/login").permitAll()
+                        .requestMatchers("/api/marketplace/sellers/register", "/api/marketplace/sellers/login").permitAll()
                         .requestMatchers("/api/jobs/recruiters", "/api/jobs/recruiters/login").permitAll()
                         .requestMatchers("/api/gpa/health").permitAll()
                         .requestMatchers("/error").permitAll()
                         .anyRequest().authenticated())
-                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(sellerJwtAuthFilter, JwtAuthFilter.class);
         return http.build();
     }
 }

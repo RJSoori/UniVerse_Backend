@@ -1,8 +1,9 @@
 package com.example.backend_service.marketplace.enums;
 
 public enum ItemCondition {
-    NEW,
+    BRAND_NEW,
     LIKE_NEW,
-    USED,
-    HEAVILY_USED
+    GOOD,
+    FAIR,
+    FOR_PARTS
 }

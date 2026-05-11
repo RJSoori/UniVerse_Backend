@@ -24,7 +24,7 @@ public class CorsConfig {
                 .filter(s -> !s.isEmpty())
                 .toList());
         cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        cfg.setAllowedHeaders(List.of("Authorization", "Content-Type"));
+        cfg.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Seller-Token"));
         cfg.setAllowCredentials(false);
         cfg.setMaxAge(3600L);
 
