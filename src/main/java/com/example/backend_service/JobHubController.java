@@ -16,6 +16,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.example.backend_service.common.exception.UnauthorizedException;
+
 @RestController
 @RequestMapping("/api/jobs")
 public class JobHubController {
@@ -38,12 +40,12 @@ public class JobHubController {
         String normalizedEmail = email.trim().toLowerCase();
         Recruiter recruiter = recruiterRepository.findByEmail(normalizedEmail);
         if (recruiter != null && passwordEncoder.matches(password, recruiter.getPassword())) {
+            if (recruiter.getStatus() != RecruiterStatus.VERIFIED) {
+                throw new UnauthorizedException("Account not verified");
+            }
             return recruiter;
         }
-        throw new org.springframework.web.server.ResponseStatusException(
-                org.springframework.http.HttpStatus.UNAUTHORIZED,
-                "Invalid credentials"
-        );
+        throw new UnauthorizedException("Invalid credentials");
     }
 
     @PostMapping("/recruiters")
