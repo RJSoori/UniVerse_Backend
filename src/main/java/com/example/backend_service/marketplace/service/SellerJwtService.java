@@ -13,6 +13,11 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
 
+/**
+ * Handles JWT token generation and validation for seller authentication.
+ * Issues tokens with seller ID as subject and validates tokens to extract seller identity.
+ * Uses HMAC SHA signing with a configurable secret and time-to-live duration.
+ */
 @Service
 public class SellerJwtService {
 
@@ -27,6 +32,11 @@ public class SellerJwtService {
         this.ttlMinutes = ttlMinutes;
     }
 
+    /**
+     * Initializes the HMAC signing key from the configured secret.
+     * Validates that the secret is at least 32 bytes for secure HMAC SHA operations.
+     * Called automatically after dependency injection.
+     */
     @PostConstruct
     void init() {
         byte[] keyBytes = secret.getBytes(StandardCharsets.UTF_8);
@@ -36,6 +46,11 @@ public class SellerJwtService {
         this.signingKey = Keys.hmacShaKeyFor(keyBytes);
     }
 
+    /**
+     * Creates a new JWT token for a seller.
+     * Token includes seller ID as subject, token type claim ("SELLER"), and expiration time.
+     * Token is valid for the configured TTL (default 1440 minutes).
+     */
     public String issue(Long sellerId) {
         Instant now = Instant.now();
         Instant exp = now.plusSeconds(ttlMinutes * 60);
@@ -48,6 +63,11 @@ public class SellerJwtService {
                 .compact();
     }
 
+    /**
+     * Validates and extracts the seller ID from a JWT token.
+     * Verifies token signature and extracts the subject (seller ID) from token claims.
+     * Throws JwtException if token is invalid, expired, or signature verification fails.
+     */
     public Long parse(String token) throws JwtException {
         Claims claims = Jwts.parser()
                 .verifyWith(signingKey)

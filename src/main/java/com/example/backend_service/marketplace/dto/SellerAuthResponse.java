@@ -1,5 +1,9 @@
 package com.example.backend_service.marketplace.dto;
 
+/**
+ * Data transfer object for seller authentication responses.
+ * Returned after successful login or registration with JWT token and seller profile information.
+ */
 public class SellerAuthResponse {
 
     private String token;

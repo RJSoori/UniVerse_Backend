@@ -4,6 +4,11 @@ import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 
+/**
+ * Represents a seller account in the marketplace.
+ * Stores seller's store information, contact details, and encrypted password.
+ * Each seller can list multiple marketplace items for sale or rent.
+ */
 @Entity
 @Table(name = "sellers")
 public class Seller {
@@ -33,7 +38,6 @@ public class Seller {
 
     public Seller() {}
 
-    // Getters and Setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public String getStoreName() { return storeName; }
