@@ -33,7 +33,11 @@ public class MarketplaceService {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
-    // --- Seller Auth Methods ---
+    /**
+     * Creates a new seller account after validating that email and username are not already in use.
+     * Encodes password using BCrypt for secure storage and issues a JWT token for immediate login.
+     * Throws RuntimeException if email or username is already registered.
+     */
     public SellerAuthResponse registerSeller(SellerRequest request) {
         if (sellerRepository.findByEmail(request.getEmail()).isPresent()) {
             throw new RuntimeException("Email already registered");
@@ -53,6 +57,11 @@ public class MarketplaceService {
         return new SellerAuthResponse(token, toSellerResponse(saved));
     }
 
+    /**
+     * Authenticates a seller by finding them by username and verifying the password.
+     * Issues a JWT token upon successful authentication for use in subsequent requests.
+     * Throws RuntimeException if username doesn't exist or password is incorrect.
+     */
     public SellerAuthResponse loginSeller(SellerLoginRequest request) {
         Seller seller = sellerRepository.findByUsername(request.getUsername())
                 .orElseThrow(() -> new RuntimeException("Invalid username or password"));
@@ -63,12 +72,18 @@ public class MarketplaceService {
         return new SellerAuthResponse(token, toSellerResponse(seller));
     }
 
+    /**
+     * Extracts seller ID from a JWT token and retrieves the corresponding seller profile.
+     * Used internally for token-based seller lookups.
+     */
     public SellerResponse getSellerByToken(String token) {
         Long sellerId = sellerJwtService.parse(token);
         return getSellerById(sellerId);
     }
 
-    // --- Seller Methods ---
+    /**
+     * Retrieves all sellers registered in the system and converts them to response DTOs.
+     */
     public List<SellerResponse> getAllSellers() {
         return sellerRepository.findAll()
                 .stream()
@@ -76,13 +91,20 @@ public class MarketplaceService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Retrieves a specific seller by ID. Throws NotFoundException if seller doesn't exist.
+     */
     public SellerResponse getSellerById(Long id) {
         Seller seller = sellerRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Seller not found with id: " + id));
         return toSellerResponse(seller);
     }
 
-    // --- Item Methods ---
+    /**
+     * Creates a new marketplace item after validating that the seller exists.
+     * Sets initial status to ACTIVE and associates the item with the selling seller.
+     * Throws NotFoundException if seller ID doesn't exist in the system.
+     */
     public MarketplaceItemResponse createItem(MarketplaceItemRequest request) {
         Seller seller = sellerRepository.findById(request.getSellerId())
                 .orElseThrow(() -> new NotFoundException("Seller not found with id: " + request.getSellerId()));
@@ -98,6 +120,10 @@ public class MarketplaceService {
         return toItemResponse(saved);
     }
 
+    /**
+     * Retrieves all active and inactive marketplace items available in the system.
+     * Converts each item to a response DTO including seller information.
+     */
     public List<MarketplaceItemResponse> getAllItems() {
         return itemRepository.findAll()
                 .stream()
@@ -105,6 +131,10 @@ public class MarketplaceService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Retrieves all items listed by a specific seller, filtered by seller ID.
+     * Returns empty list if seller has no items.
+     */
     public List<MarketplaceItemResponse> getItemsBySeller(Long sellerId) {
         return itemRepository.findBySellerId(sellerId)
                 .stream()
@@ -112,12 +142,21 @@ public class MarketplaceService {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * Retrieves details of a specific marketplace item by ID.
+     * Throws NotFoundException if item doesn't exist.
+     */
     public MarketplaceItemResponse getItemById(Long id) {
         MarketplaceItem item = itemRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Item not found with id: " + id));
         return toItemResponse(item);
     }
 
+    /**
+     * Permanently removes a marketplace item from the system.
+     * Validates that item exists before attempting deletion.
+     * Throws NotFoundException if item ID doesn't exist.
+     */
     public void deleteItem(Long id) {
         if (!itemRepository.existsById(id)) {
             throw new NotFoundException("Item not found with id: " + id);
@@ -125,7 +164,10 @@ public class MarketplaceService {
         itemRepository.deleteById(id);
     }
 
-    // --- Mapping Methods ---
+    /**
+     * Converts a Seller entity to a SellerResponse DTO, excluding sensitive information like password.
+     * Maps relevant seller information for API responses.
+     */
     private SellerResponse toSellerResponse(Seller seller) {
         SellerResponse response = new SellerResponse();
         response.setId(seller.getId());
@@ -136,6 +178,10 @@ public class MarketplaceService {
         return response;
     }
 
+    /**
+     * Converts a MarketplaceItem entity to a MarketplaceItemResponse DTO.
+     * Includes the associated seller information by converting the seller entity to a response DTO.
+     */
     private MarketplaceItemResponse toItemResponse(MarketplaceItem item) {
         MarketplaceItemResponse response = new MarketplaceItemResponse();
         response.setId(item.getId());

@@ -3,6 +3,10 @@ package com.example.backend_service.marketplace.dto;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 
+/**
+ * Data transfer object for seller registration requests.
+ * Contains all required fields for creating a new seller account with validation constraints.
+ */
 public class SellerRequest {
 
     @NotBlank
@@ -22,7 +26,6 @@ public class SellerRequest {
 
     private String description;
 
-    // Getters and Setters
     public String getStoreName() { return storeName; }
     public void setStoreName(String storeName) { this.storeName = storeName; }
     public String getEmail() { return email; }

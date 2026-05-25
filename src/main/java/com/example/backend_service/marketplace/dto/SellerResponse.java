@@ -1,5 +1,9 @@
 package com.example.backend_service.marketplace.dto;
 
+/**
+ * Data transfer object for seller information returned in API responses.
+ * Excludes sensitive information like password. Used for profile display and marketplace item attribution.
+ */
 public class SellerResponse {
 
     private Long id;
@@ -8,7 +12,6 @@ public class SellerResponse {
     private String phone;
     private String description;
 
-    // Getters and Setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public String getStoreName() { return storeName; }
