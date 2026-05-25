@@ -7,5 +7,4 @@ import java.util.Optional;
 
 public interface MoneyManagerSettingsRepository extends JpaRepository<MoneyManagerSettings, String> {
     Optional<MoneyManagerSettings> findByStudentId(Long studentId);
-    void deleteByStudentId(Long studentId);
 }
