@@ -4,6 +4,11 @@ import com.example.backend_service.marketplace.enums.ItemCondition;
 import com.example.backend_service.marketplace.enums.ItemStatus;
 import com.example.backend_service.marketplace.enums.ItemType;
 
+/**
+ * Data transfer object for marketplace item information in API responses.
+ * Contains complete item details including condition, status, type, and associated seller information.
+ * Returned when retrieving item listings or after item creation/updates.
+ */
 public class MarketplaceItemResponse {
 
     private Long id;
@@ -16,7 +21,6 @@ public class MarketplaceItemResponse {
     private String imageUrl;
     private SellerResponse seller;
 
-    // Getters and Setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public String getItemName() { return itemName; }

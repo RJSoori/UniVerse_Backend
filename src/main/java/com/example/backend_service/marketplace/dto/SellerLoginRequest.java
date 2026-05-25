@@ -2,6 +2,10 @@ package com.example.backend_service.marketplace.dto;
 
 import jakarta.validation.constraints.NotBlank;
 
+/**
+ * Data transfer object for seller login requests.
+ * Contains credentials (username and password) needed to authenticate a seller.
+ */
 public class SellerLoginRequest {
 
     @NotBlank

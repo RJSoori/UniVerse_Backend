@@ -41,7 +41,7 @@ public class BudgetPlan extends BaseEntity {
     @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal totalSpent = BigDecimal.ZERO;
 
-    @Column(nullable = false, length = 19)
+    @Column(nullable = false, length = 30)
     private String lastUpdated;
 
     public BudgetPlan() {

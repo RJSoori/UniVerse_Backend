@@ -6,6 +6,11 @@ import com.example.backend_service.marketplace.enums.ItemType;
 
 import jakarta.persistence.*;
 
+/**
+ * Represents an item listed in the marketplace.
+ * Stores item details including name, description, price, condition, and type (sell or rent).
+ * Each item is associated with a seller and tracks its current status (active, sold, rented, or removed).
+ */
 @Entity
 @Table(name = "marketplace_items")
 public class MarketplaceItem {
@@ -43,7 +48,6 @@ public class MarketplaceItem {
 
     public MarketplaceItem() {}
 
-    // Getters and Setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public String getItemName() { return itemName; }

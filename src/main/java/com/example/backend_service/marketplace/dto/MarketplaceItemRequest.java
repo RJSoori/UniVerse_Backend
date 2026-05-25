@@ -5,6 +5,10 @@ import com.example.backend_service.marketplace.enums.ItemType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
+/**
+ * Data transfer object for marketplace item creation requests.
+ * Contains item details including name, description, price, condition, and type with validation constraints.
+ */
 public class MarketplaceItemRequest {
 
     @NotBlank
@@ -26,7 +30,6 @@ public class MarketplaceItemRequest {
     @NotNull
     private Long sellerId;
 
-    // Getters and Setters
     public String getItemName() { return itemName; }
     public void setItemName(String itemName) { this.itemName = itemName; }
     public String getDescription() { return description; }
