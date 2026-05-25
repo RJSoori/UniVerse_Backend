@@ -2,9 +2,9 @@ package com.example.backend_service.jobhub.controller;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,17 +19,16 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.http.HttpStatus;
 
+import com.example.backend_service.AzureBlobService;
+import com.example.backend_service.RecruiterStatus;
 import com.example.backend_service.common.exception.UnauthorizedException;
-import com.example.backend_service.jobhub.repository.JobRepository;
-import com.example.backend_service.jobhub.repository.RecruiterRepository;
+import com.example.backend_service.jobhub.dto.JobRequest;
 import com.example.backend_service.jobhub.enums.JobStatus;
 import com.example.backend_service.jobhub.model.Job;
-import com.example.backend_service.RecruiterStatus;
 import com.example.backend_service.jobhub.model.Recruiter;
-import com.example.backend_service.AzureBlobService;
-import com.example.backend_service.jobhub.dto.JobRequest;
+import com.example.backend_service.jobhub.repository.JobRepository;
+import com.example.backend_service.jobhub.repository.RecruiterRepository;
 
 @RestController
 @RequestMapping("/api/jobs")
@@ -47,7 +46,7 @@ public class JobHubController {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
-    // --- Recruiter Endpoints ---
+    // Recruiter Endpoints
     @PostMapping("/recruiters/login")
     public Recruiter loginRecruiter(@RequestParam("email") String email, @RequestParam("password") String password) {
         String normalizedEmail = email.trim().toLowerCase();
@@ -62,14 +61,18 @@ public class JobHubController {
     }
 
     @PostMapping("/recruiters")
-    public Recruiter registerRecruiter(@RequestParam("companyName") String companyName,
-                                       @RequestParam("email") String email,
-                                       @RequestParam("contactPerson") String contactPerson,
-                                       @RequestParam("password") String password,
-                                       @RequestParam(value = "accountType", defaultValue = "company") String accountType,
-                                       @RequestParam(value = "businessRegistration", required = false) MultipartFile businessRegistration,
-                                       @RequestParam(value = "orgLogo", required = false) MultipartFile orgLogo,
-                                       @RequestParam(value = "authLetter", required = false) MultipartFile authLetter) throws IOException {
+    public Recruiter registerRecruiter(
+            @RequestParam("companyName") String companyName,
+            @RequestParam("email") String email,
+            @RequestParam("contactPerson") String contactPerson,
+            @RequestParam("password") String password,
+            @RequestParam(value = "accountType", defaultValue = "company") String accountType,
+            @RequestParam(value = "businessRegistration", required = false) MultipartFile businessRegistration,
+            @RequestParam(value = "orgLogo", required = false) MultipartFile orgLogo,
+            @RequestParam(value = "authLetter", required = false) MultipartFile authLetter,
+            @RequestParam(value = "profilePicture", required = false) MultipartFile profilePicture,
+            @RequestParam(value = "idDocument", required = false) MultipartFile idDocument
+    ) throws IOException {
         Recruiter recruiter = new Recruiter();
         recruiter.setCompanyName(companyName);
         recruiter.setEmail(email.trim().toLowerCase());
@@ -77,6 +80,7 @@ public class JobHubController {
         recruiter.setPassword(passwordEncoder.encode(password));
         recruiter.setAccountType(accountType);
 
+        // Corporate documents
         if (businessRegistration != null && !businessRegistration.isEmpty()) {
             String url = azureBlobService.uploadFile(businessRegistration);
             recruiter.setBusinessRegistrationUrl(url);
@@ -88,6 +92,16 @@ public class JobHubController {
         if (authLetter != null && !authLetter.isEmpty()) {
             String url = azureBlobService.uploadFile(authLetter);
             recruiter.setAuthLetterUrl(url);
+        }
+
+        // Individual documents
+        if (profilePicture != null && !profilePicture.isEmpty()) {
+            String url = azureBlobService.uploadFile(profilePicture);
+            recruiter.setProfilePictureUrl(url);
+        }
+        if (idDocument != null && !idDocument.isEmpty()) {
+            String url = azureBlobService.uploadFile(idDocument);
+            recruiter.setIdDocumentUrl(url);
         }
 
         return recruiterRepository.save(recruiter);
@@ -107,7 +121,7 @@ public class JobHubController {
         return recruiterRepository.save(recruiter);
     }
 
-    // --- Job Endpoints ---
+    // Job Endpoints
     @PostMapping("/post")
     public Job postJob(@RequestBody JobRequest request) {
         Recruiter recruiter = recruiterRepository.findById(request.recruiterId())
@@ -150,7 +164,7 @@ public class JobHubController {
         jobRepository.delete(job);
     }
 
-    // --- Admin Endpoints ---
+    // Admin Endpoints
     @GetMapping("/admin/pending")
     @PreAuthorize("hasRole('ADMIN')")
     public List<Job> getPendingJobs() {
