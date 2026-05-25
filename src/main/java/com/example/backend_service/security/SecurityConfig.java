@@ -40,7 +40,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers("/api/auth/register", "/api/auth/login").permitAll()
                         .requestMatchers("/api/marketplace/sellers/register", "/api/marketplace/sellers/login").permitAll()
-                        .requestMatchers("/api/jobs/recruiters", "/api/jobs/recruiters/login").permitAll()
+                        .requestMatchers("/api/jobs/post", "/api/jobs/all", "/api/jobs/recruiters", "/api/jobs/recruiters/**").permitAll()
                         .requestMatchers("/api/gpa/health").permitAll()
                         .requestMatchers("/error").permitAll()
                         .anyRequest().authenticated())

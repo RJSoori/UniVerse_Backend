@@ -1,4 +1,7 @@
-package com.example.backend_service;
+package com.example.backend_service.jobhub.model;
+
+import com.example.backend_service.RecruiterStatus;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -16,10 +19,14 @@ public class Recruiter {
     private String companyName;
     private String email;
     private String contactPerson;
+    @JsonIgnore
     private String password;
     private String businessRegistrationUrl;
     private String orgLogoUrl;
     private String authLetterUrl;
+    // For individuals
+    private String profilePictureUrl;
+    private String idDocumentUrl;
     private String accountType = "company";
 
     @Enumerated(EnumType.STRING)
@@ -44,6 +51,10 @@ public class Recruiter {
     public void setOrgLogoUrl(String orgLogoUrl) { this.orgLogoUrl = orgLogoUrl; }
     public String getAuthLetterUrl() { return authLetterUrl; }
     public void setAuthLetterUrl(String authLetterUrl) { this.authLetterUrl = authLetterUrl; }
+    public String getProfilePictureUrl() { return profilePictureUrl; }
+    public void setProfilePictureUrl(String profilePictureUrl) { this.profilePictureUrl = profilePictureUrl; }
+    public String getIdDocumentUrl() { return idDocumentUrl; }
+    public void setIdDocumentUrl(String idDocumentUrl) { this.idDocumentUrl = idDocumentUrl; }
     public String getAccountType() { return accountType; }
     public void setAccountType(String accountType) { this.accountType = accountType; }
     public RecruiterStatus getStatus() { return status; }
