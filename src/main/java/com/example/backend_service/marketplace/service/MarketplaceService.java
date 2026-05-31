@@ -7,6 +7,7 @@ import com.example.backend_service.marketplace.dto.SellerAuthResponse;
 import com.example.backend_service.marketplace.dto.SellerLoginRequest;
 import com.example.backend_service.marketplace.dto.SellerRequest;
 import com.example.backend_service.marketplace.dto.SellerResponse;
+import com.example.backend_service.marketplace.dto.SellerUpdateRequest;
 import com.example.backend_service.marketplace.model.MarketplaceItem;
 import com.example.backend_service.marketplace.model.Seller;
 import com.example.backend_service.marketplace.repository.MarketplaceItemRepository;
@@ -99,6 +100,27 @@ public class MarketplaceService {
                 .orElseThrow(() -> new NotFoundException("Seller not found with id: " + id));
         return toSellerResponse(seller);
     }
+
+    /**
+ * Updates an existing seller's profile information.
+ * Only updates fields that are provided (not null).
+ * Throws NotFoundException if seller doesn't exist.
+ */
+public SellerResponse updateSeller(Long sellerId, SellerUpdateRequest request) {
+    Seller seller = sellerRepository.findById(sellerId)
+            .orElseThrow(() -> new NotFoundException("Seller not found with id: " + sellerId));
+    if (request.getStoreName() != null && !request.getStoreName().isBlank()) {
+        seller.setStoreName(request.getStoreName());
+    }
+    if (request.getPhone() != null && !request.getPhone().isBlank()) {
+        seller.setPhone(request.getPhone());
+    }
+    if (request.getDescription() != null) {
+        seller.setDescription(request.getDescription());
+    }
+    Seller updated = sellerRepository.save(seller);
+    return toSellerResponse(updated);
+}
 
     /**
      * Creates a new marketplace item after validating that the seller exists.

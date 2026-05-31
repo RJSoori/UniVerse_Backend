@@ -6,6 +6,7 @@ import com.example.backend_service.marketplace.dto.SellerAuthResponse;
 import com.example.backend_service.marketplace.dto.SellerLoginRequest;
 import com.example.backend_service.marketplace.dto.SellerRequest;
 import com.example.backend_service.marketplace.dto.SellerResponse;
+import com.example.backend_service.marketplace.dto.SellerUpdateRequest;
 import com.example.backend_service.marketplace.service.MarketplaceService;
 import com.example.backend_service.marketplace.service.SellerJwtService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,7 +35,7 @@ public class MarketplaceController {
         return ResponseEntity.ok(marketplaceService.registerSeller(request));
     }
 
-    /**
+    /** 
      * Authenticates a seller by verifying username and password.
      * Issues a JWT token for subsequent authenticated requests.
      */
@@ -74,7 +75,18 @@ public class MarketplaceController {
     public ResponseEntity<SellerResponse> getSellerById(@PathVariable Long id) {
         return ResponseEntity.ok(marketplaceService.getSellerById(id));
     }
-
+    
+    @PutMapping("/sellers/me")
+    public ResponseEntity<SellerResponse> updateMySellerProfile(
+        @RequestHeader(value = "X-Seller-Token", required = false) String sellerToken,
+        @RequestBody SellerUpdateRequest request) {
+    if (sellerToken == null) {
+        return ResponseEntity.status(401).build();
+    }
+    Long sellerId = sellerJwtService.parse(sellerToken);
+    return ResponseEntity.ok(marketplaceService.updateSeller(sellerId, request));
+    }
+    
     /**
      * Retrieves all marketplace items currently listed.
      * Available to all users for browsing purposes.
