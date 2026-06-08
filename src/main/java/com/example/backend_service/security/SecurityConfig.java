@@ -32,6 +32,7 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        // Configure security: CORS enabled, CSRF disabled, stateless sessions, JWT auth, and endpoint permissions
         http
                 .cors(Customizer.withDefaults())
                 .csrf(AbstractHttpConfigurer::disable)
@@ -42,6 +43,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/marketplace/sellers/register", "/api/marketplace/sellers/login").permitAll()
                         .requestMatchers("/api/jobs/post", "/api/jobs/all", "/api/jobs/recruiters", "/api/jobs/recruiters/**").permitAll()
                         .requestMatchers("/api/gpa/health").permitAll()
+                        .requestMatchers("/api/focus/save", "/api/focus/analytics").permitAll()
                         .requestMatchers("/error").permitAll()
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)

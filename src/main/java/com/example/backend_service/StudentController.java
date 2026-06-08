@@ -23,6 +23,7 @@ public class StudentController {
         this.studentRepository = studentRepository;
     }
 
+    // Admin-only endpoint to list all students, used for admin management UI
     @GetMapping("/all")
     @PreAuthorize("hasRole('ADMIN')")
     public List<UserDto> getAllStudents() {
