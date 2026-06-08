@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "students", uniqueConstraints = {
@@ -36,6 +37,13 @@ public class Student {
     @Column(nullable = false, length = 16)
     private Role role = Role.STUDENT;
 
+    @Column(name = "created_at", nullable = false, updatable = false)
+    /**
+     * Server-side account creation timestamp. Exposed to clients to support
+     * onboarding UX (e.g. first-month habit suggestions) and sorting.
+     */
+    private LocalDateTime createdAt;
+
     public Student() {}
 
     public Student(String name, String degree, String email, String username, String password) {
@@ -66,4 +74,14 @@ public class Student {
 
     public Role getRole() { return role; }
     public void setRole(Role role) { this.role = role; }
+
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+
+    @PrePersist
+    protected void onCreate() {
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
+    }
 }
