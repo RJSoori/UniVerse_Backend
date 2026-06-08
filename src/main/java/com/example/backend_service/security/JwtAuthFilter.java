@@ -41,6 +41,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             return;
         }
 
+        // Extract and validate JWT, set SecurityContext if valid
         String header = request.getHeader(HttpHeaders.AUTHORIZATION);
         if (header != null && header.startsWith("Bearer ")) {
             String token = header.substring(7);

@@ -15,6 +15,7 @@ import java.time.Instant;
 import java.util.Date;
 
 /**
+ * Service for issuing and parsing JWTs.
  * Issues and verifies HS256 JWTs. Subject = student id (Long, serialized as string).
  * Custom claim "role" carries the student's role for authorization.
  */
