@@ -5,11 +5,8 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-<<<<<<< HEAD
-        <version>3.3.0</version>
-=======
+
         <version>4.0.5</version>
->>>>>>> 32f8be824590b022ac43b59cd12ebc282acf72e3
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>com.example</groupId>
@@ -31,13 +28,9 @@
         <url/>
     </scm>
     <properties>
-<<<<<<< HEAD
-        <java.version>21</java.version>
-        <maven.compiler.plugin.version>3.14.0</maven.compiler.plugin.version>
-        <maven.surefire.plugin.version>3.5.3</maven.surefire.plugin.version>
-=======
+
         <java.version>25</java.version>
->>>>>>> 32f8be824590b022ac43b59cd12ebc282acf72e3
+
     </properties>
     <dependencies>
         <dependency>
@@ -46,7 +39,6 @@
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
-<<<<<<< HEAD
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
         <dependency>
@@ -58,53 +50,18 @@
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
         <dependency>
-            <groupId>io.jsonwebtoken</groupId>
-            <artifactId>jjwt-api</artifactId>
-            <version>0.12.6</version>
-        </dependency>
-        <dependency>
-            <groupId>io.jsonwebtoken</groupId>
-            <artifactId>jjwt-impl</artifactId>
-            <version>0.12.6</version>
-            <scope>runtime</scope>
-        </dependency>
-        <dependency>
-            <groupId>io.jsonwebtoken</groupId>
-            <artifactId>jjwt-jackson</artifactId>
-            <version>0.12.6</version>
-            <scope>runtime</scope>
-=======
-            <artifactId>spring-boot-starter-webmvc</artifactId>
->>>>>>> 32f8be824590b022ac43b59cd12ebc282acf72e3
-        </dependency>
-
-        <dependency>
             <groupId>com.mysql</groupId>
             <artifactId>mysql-connector-j</artifactId>
             <scope>runtime</scope>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
-<<<<<<< HEAD
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>org.springframework.security</groupId>
-            <artifactId>spring-security-test</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.h2database</groupId>
-            <artifactId>h2</artifactId>
-=======
-            <artifactId>spring-boot-starter-data-jpa-test</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-webmvc-test</artifactId>
->>>>>>> 32f8be824590b022ac43b59cd12ebc282acf72e3
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-junit-jupiter</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -113,34 +70,44 @@
             <version>3.0.0</version>
         </dependency>
         <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-api</artifactId>
+            <version>0.12.3</version>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-impl</artifactId>
+            <version>0.12.3</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.jsonwebtoken</groupId>
+            <artifactId>jjwt-jackson</artifactId>
+            <version>0.12.3</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
             <groupId>com.azure</groupId>
             <artifactId>azure-storage-blob</artifactId>
-<<<<<<< HEAD
-            <version>12.28.1</version>
-=======
             <version>12.28.0</version>
->>>>>>> 32f8be824590b022ac43b59cd12ebc282acf72e3
         </dependency>
     </dependencies>
 
     <build>
         <plugins>
             <plugin>
-<<<<<<< HEAD
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <version>${maven.compiler.plugin.version}</version>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <version>${maven.surefire.plugin.version}</version>
-            </plugin>
-            <plugin>
-=======
->>>>>>> 32f8be824590b022ac43b59cd12ebc282acf72e3
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.11.0</version>
+                <configuration>
+                    <source>25</source>
+                    <target>25</target>
+                    <release>25</release>
+                </configuration>
             </plugin>
         </plugins>
     </build>

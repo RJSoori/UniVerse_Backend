@@ -3,6 +3,8 @@ package com.example.backend_service.jobhub.controller;
 import java.io.IOException;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -34,6 +36,8 @@ import com.example.backend_service.jobhub.repository.RecruiterRepository;
 @RequestMapping("/api/jobs")
 public class JobHubController {
 
+    private static final Logger log = LoggerFactory.getLogger(JobHubController.class);
+
     @Autowired
     private JobRepository jobRepository;
 
@@ -51,13 +55,19 @@ public class JobHubController {
     public Recruiter loginRecruiter(@RequestParam("email") String email, @RequestParam("password") String password) {
         String normalizedEmail = email.trim().toLowerCase();
         Recruiter recruiter = recruiterRepository.findByEmail(normalizedEmail);
-        if (recruiter != null && passwordEncoder.matches(password, recruiter.getPassword())) {
-            if (recruiter.getStatus() != RecruiterStatus.VERIFIED) {
-                throw new UnauthorizedException("Account not verified");
-            }
-            return recruiter;
+        if (recruiter == null) {
+            log.info("Login attempt for unknown recruiter email={}", normalizedEmail);
+            throw new UnauthorizedException("Invalid credentials");
         }
-        throw new UnauthorizedException("Invalid credentials");
+        boolean passMatches = passwordEncoder.matches(password, recruiter.getPassword());
+        log.info("Recruiter login attempt email={}, status={}, passMatches={}", normalizedEmail, recruiter.getStatus(), passMatches);
+        if (!passMatches) {
+            throw new UnauthorizedException("Invalid credentials");
+        }
+        if (recruiter.getStatus() != RecruiterStatus.VERIFIED) {
+            throw new UnauthorizedException("Account not verified");
+        }
+        return recruiter;
     }
 
     @PostMapping("/recruiters")
@@ -73,9 +83,15 @@ public class JobHubController {
             @RequestParam(value = "profilePicture", required = false) MultipartFile profilePicture,
             @RequestParam(value = "idDocument", required = false) MultipartFile idDocument
     ) throws IOException {
+        String normalizedEmail = email.trim().toLowerCase();
+        Recruiter existing = recruiterRepository.findByEmail(normalizedEmail);
+        if (existing != null) {
+            throw new UnauthorizedException("Email already registered");
+        }
+        
         Recruiter recruiter = new Recruiter();
         recruiter.setCompanyName(companyName);
-        recruiter.setEmail(email.trim().toLowerCase());
+        recruiter.setEmail(normalizedEmail);
         recruiter.setContactPerson(contactPerson);
         recruiter.setPassword(passwordEncoder.encode(password));
         recruiter.setAccountType(accountType);
@@ -159,9 +175,16 @@ public class JobHubController {
     @Transactional
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteRecruiterJob(@PathVariable Long recruiterId, @PathVariable Long jobId) {
+        log.info("Delete job request: recruiterId={}, jobId={}", recruiterId, jobId);
         Job job = jobRepository.findByIdAndRecruiterId(jobId, recruiterId)
-                .orElseThrow(() -> new RuntimeException("Job not found or unauthorized deletion attempt"));
+                .orElseThrow(() -> {
+                    log.error("Job not found: jobId={}, recruiterId={}", jobId, recruiterId);
+                    return new RuntimeException("Job not found or unauthorized deletion attempt");
+                });
+        log.info("Found job: id={}, title={}, recruiter={}", job.getId(), job.getTitle(), job.getRecruiter().getId());
         jobRepository.delete(job);
+        jobRepository.flush();
+        log.info("Job deleted successfully: id={}", jobId);
     }
 
     // Admin Endpoints

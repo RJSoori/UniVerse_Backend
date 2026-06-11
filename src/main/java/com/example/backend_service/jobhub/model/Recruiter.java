@@ -3,6 +3,7 @@ package com.example.backend_service.jobhub.model;
 import com.example.backend_service.RecruiterStatus;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -17,6 +18,8 @@ public class Recruiter {
     private Long id;
 
     private String companyName;
+    
+    @Column(unique = true, nullable = false)
     private String email;
     private String contactPerson;
     @JsonIgnore

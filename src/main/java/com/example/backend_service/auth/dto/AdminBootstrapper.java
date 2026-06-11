@@ -1,21 +1,22 @@
-package main.java.com.example.backend_service.auth.dto;
+package com.example.backend_service.auth.dto;
 
-import com.example.backend_service.Role;
-import com.example.backend_service.Student;
-import com.example.backend_service.StudentRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.stereotype.Component;
 
+import com.example.backend_service.Role;
+import com.example.backend_service.Student;
+import com.example.backend_service.StudentRepository;
+// @Component - REMOVED: Duplicate of com.example.backend_service.security.AdminBootstrapper
+// This file should be deleted. The actual implementation is in security/ package.
 /**
  * Seeds a single ADMIN-role student on startup if (a) zero admins exist and
  * (b) ADMIN_BOOTSTRAP_USERNAME and ADMIN_BOOTSTRAP_PASSWORD env vars are set.
  * Idempotent: subsequent runs are no-ops once an admin exists.
  */
-@Component
+@Deprecated
 public class AdminBootstrapper implements CommandLineRunner {
 
     private static final Logger log = LoggerFactory.getLogger(AdminBootstrapper.class);
