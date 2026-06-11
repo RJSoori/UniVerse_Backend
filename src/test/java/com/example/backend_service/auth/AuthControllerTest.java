@@ -1,5 +1,6 @@
 package com.example.backend_service.auth;
 
+import java.time.LocalDateTime;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -52,6 +53,7 @@ class AuthControllerTest {
         saved.setUsername("nina");
         saved.setPassword("encoded");
         saved.setRole(Role.STUDENT);
+        saved.setCreatedAt(LocalDateTime.of(2025, 1, 1, 0, 0, 0));
 
         when(studentRepository.existsByUsername("nina")).thenReturn(false);
         when(studentRepository.existsByEmail("nina@example.com")).thenReturn(false);
@@ -64,7 +66,7 @@ class AuthControllerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().token()).isEqualTo("token-7");
-        assertThat(response.getBody().user()).isEqualTo(new UserDto(7L, "nina", "Nina", "nina@example.com", "CS", Role.STUDENT));
+        assertThat(response.getBody().user()).isEqualTo(new UserDto(7L, "nina", "Nina", "nina@example.com", "CS", Role.STUDENT, LocalDateTime.of(2025, 1, 1, 0, 0, 0)));
         verify(studentRepository).save(any(Student.class));
     }
 
@@ -106,6 +108,7 @@ class AuthControllerTest {
         saved.setEmail("nina@example.com");
         saved.setDegree("CS");
         saved.setRole(Role.STUDENT);
+        saved.setCreatedAt(LocalDateTime.of(2025, 1, 1, 0, 0, 0));
 
         when(studentRepository.findById(7L)).thenReturn(Optional.of(saved));
         when(studentRepository.existsByEmail("nina.new@example.com")).thenReturn(false);
@@ -114,6 +117,6 @@ class AuthControllerTest {
         ResponseEntity<UserDto> response = controller.updateMe(7L, new UpdateProfileRequest("Nina New", "nina.new@example.com", "IT"));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).isEqualTo(new UserDto(7L, "nina", "Nina New", "nina.new@example.com", "IT", Role.STUDENT));
+        assertThat(response.getBody()).isEqualTo(new UserDto(7L, "nina", "Nina New", "nina.new@example.com", "IT", Role.STUDENT, LocalDateTime.of(2025, 1, 1, 0, 0, 0)));
     }
 }
