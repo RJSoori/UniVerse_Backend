@@ -25,7 +25,7 @@ public class Job {
     private String workType;
     private String employmentType;
     private String postedAt;
-    private String externalApplicationUrl; // Redirects students outside
+    private String externalApplicationUrl; 
 
     @Enumerated(EnumType.STRING)
     private JobStatus status = JobStatus.PENDING;

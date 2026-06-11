@@ -1,5 +1,21 @@
 package com.example.backend_service.auth;
 
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import static org.mockito.ArgumentMatchers.any;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.password.PasswordEncoder;
+
 import com.example.backend_service.Role;
 import com.example.backend_service.Student;
 import com.example.backend_service.StudentRepository;
@@ -9,24 +25,6 @@ import com.example.backend_service.auth.dto.RegisterRequest;
 import com.example.backend_service.auth.dto.UpdateProfileRequest;
 import com.example.backend_service.auth.dto.UserDto;
 import com.example.backend_service.security.JwtService;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.crypto.password.PasswordEncoder;
-
-import java.util.Optional;
-import java.time.LocalDateTime;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class AuthControllerTest {
@@ -54,7 +52,6 @@ class AuthControllerTest {
         saved.setUsername("nina");
         saved.setPassword("encoded");
         saved.setRole(Role.STUDENT);
-        saved.setCreatedAt(LocalDateTime.parse("2026-01-10T09:15:00"));
 
         when(studentRepository.existsByUsername("nina")).thenReturn(false);
         when(studentRepository.existsByEmail("nina@example.com")).thenReturn(false);
@@ -67,7 +64,7 @@ class AuthControllerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().token()).isEqualTo("token-7");
-        assertThat(response.getBody().user()).isEqualTo(new UserDto(7L, "nina", "Nina", "nina@example.com", "CS", Role.STUDENT, saved.getCreatedAt()));
+        assertThat(response.getBody().user()).isEqualTo(new UserDto(7L, "nina", "Nina", "nina@example.com", "CS", Role.STUDENT));
         verify(studentRepository).save(any(Student.class));
     }
 
@@ -91,7 +88,6 @@ class AuthControllerTest {
         saved.setEmail("nina@example.com");
         saved.setDegree("CS");
         saved.setRole(Role.STUDENT);
-        saved.setCreatedAt(LocalDateTime.parse("2026-01-10T09:15:00"));
 
         when(studentRepository.findById(7L)).thenReturn(Optional.of(saved));
 
@@ -110,7 +106,6 @@ class AuthControllerTest {
         saved.setEmail("nina@example.com");
         saved.setDegree("CS");
         saved.setRole(Role.STUDENT);
-        saved.setCreatedAt(LocalDateTime.parse("2026-01-10T09:15:00"));
 
         when(studentRepository.findById(7L)).thenReturn(Optional.of(saved));
         when(studentRepository.existsByEmail("nina.new@example.com")).thenReturn(false);
@@ -119,6 +114,6 @@ class AuthControllerTest {
         ResponseEntity<UserDto> response = controller.updateMe(7L, new UpdateProfileRequest("Nina New", "nina.new@example.com", "IT"));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).isEqualTo(new UserDto(7L, "nina", "Nina New", "nina.new@example.com", "IT", Role.STUDENT, saved.getCreatedAt()));
+        assertThat(response.getBody()).isEqualTo(new UserDto(7L, "nina", "Nina New", "nina.new@example.com", "IT", Role.STUDENT));
     }
 }
