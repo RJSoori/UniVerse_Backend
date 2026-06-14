@@ -133,14 +133,17 @@ public class GPACalculatorService {
         double totalWeightedPoints = 0.0;
         double totalCredits = 0.0;
 
+        // Accumulate grade*credits directly across all subjects in one pass to avoid
+        // cumulative rounding error from computing per-semester SGPA first.
         for (GPASemester semester : semesters) {
-            double sgpa = calculateSGPA(semester, settings);
-            double semesterCredits = semester.getSubjects().stream()
-                    .filter(s -> s.getIsGpa())
-                    .mapToDouble(GPASubject::getCredits)
-                    .sum();
-            totalWeightedPoints += sgpa * semesterCredits;
-            totalCredits += semesterCredits;
+            for (GPASubject subject : semester.getSubjects()) {
+                if (Boolean.TRUE.equals(subject.getIsGpa())) {
+                    double gradePoint = getGradePoint(subject.getGrade(), settings.getGpaScale());
+                    double credits = subject.getCredits();
+                    totalWeightedPoints += gradePoint * credits;
+                    totalCredits += credits;
+                }
+            }
         }
 
         if (totalCredits == 0.0) {
@@ -251,11 +254,19 @@ public class GPACalculatorService {
             totalCurrentCredits += semesterCredits;
         }
 
+        if (nextSemesterSubjects.isEmpty()) {
+            return 0.0;
+        }
+
+        double totalNextCredits = nextSemesterSubjects.stream().mapToDouble(Double::doubleValue).sum();
+        if (totalNextCredits == 0.0) {
+            return 0.0;
+        }
+
         // Get the threshold for the target degree class
         double threshold = getThresholdForDegreeClass(targetDegreeClass, settings);
 
         int successCount = 0;
-        double totalNextCredits = nextSemesterSubjects.stream().mapToDouble(Double::doubleValue).sum();
 
         for (int i = 0; i < simulations; i++) {
             // Simulate random grades for next semester

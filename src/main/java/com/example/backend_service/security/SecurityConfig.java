@@ -19,10 +19,14 @@ public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
     private final SellerJwtAuthFilter sellerJwtAuthFilter;
+    private final RecruiterJwtAuthFilter recruiterJwtAuthFilter;
 
-    public SecurityConfig(JwtAuthFilter jwtAuthFilter, SellerJwtAuthFilter sellerJwtAuthFilter) {
+    public SecurityConfig(JwtAuthFilter jwtAuthFilter,
+                          SellerJwtAuthFilter sellerJwtAuthFilter,
+                          RecruiterJwtAuthFilter recruiterJwtAuthFilter) {
         this.jwtAuthFilter = jwtAuthFilter;
         this.sellerJwtAuthFilter = sellerJwtAuthFilter;
+        this.recruiterJwtAuthFilter = recruiterJwtAuthFilter;
     }
 
     @Bean
@@ -32,22 +36,32 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        // Configure security: CORS enabled, CSRF disabled, stateless sessions, JWT auth, and endpoint permissions
         http
                 .cors(Customizer.withDefaults())
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        // Student auth
                         .requestMatchers("/api/auth/register", "/api/auth/login").permitAll()
+                        // Seller auth (marketplace)
                         .requestMatchers("/api/marketplace/sellers/register", "/api/marketplace/sellers/login").permitAll()
-                        .requestMatchers("/api/jobs/post", "/api/jobs/all", "/api/jobs/recruiters", "/api/jobs/recruiters/**").permitAll()
+                        // Public job browsing
+                        .requestMatchers(HttpMethod.GET, "/api/jobs/all").permitAll()
+                        // Recruiter registration and login
+                        .requestMatchers(HttpMethod.POST, "/api/jobs/recruiters").permitAll()
+                        .requestMatchers("/api/jobs/recruiters/login").permitAll()
+                        // GPA health check
                         .requestMatchers("/api/gpa/health").permitAll()
-                        .requestMatchers("/api/focus/save", "/api/focus/analytics").permitAll()
                         .requestMatchers("/error").permitAll()
+                        // Recruiter-only job actions
+                        .requestMatchers(HttpMethod.POST, "/api/jobs/post").hasRole("RECRUITER")
+                        .requestMatchers(HttpMethod.DELETE, "/api/jobs/recruiters/*/jobs/*").hasRole("RECRUITER")
+                        // Everything else requires a student JWT
                         .anyRequest().authenticated())
-                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterBefore(sellerJwtAuthFilter, JwtAuthFilter.class);
+                .addFilterBefore(recruiterJwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(sellerJwtAuthFilter, RecruiterJwtAuthFilter.class)
+                .addFilterBefore(jwtAuthFilter, SellerJwtAuthFilter.class);
         return http.build();
     }
 }

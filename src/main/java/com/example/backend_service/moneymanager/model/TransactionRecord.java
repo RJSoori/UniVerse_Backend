@@ -6,6 +6,10 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Table;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Positive;
 import java.math.BigDecimal;
 
 @Entity
@@ -20,18 +24,23 @@ public class TransactionRecord extends BaseEntity {
     @Column(nullable = false, length = 16)
     private TransactionType type;
 
+    @NotNull
+    @Positive
     @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal amount;
 
+    @NotBlank
     @Column(nullable = false, length = 80)
     private String category;
 
+    @NotBlank
     @Column(nullable = false, length = 36)
     private String walletId;
 
     @Column(length = 255)
     private String description;
 
+    @Pattern(regexp = "^\\d{4}-\\d{2}-\\d{2}$", message = "must be in YYYY-MM-DD format")
     @Column(nullable = false, length = 10)
     private String date;
 

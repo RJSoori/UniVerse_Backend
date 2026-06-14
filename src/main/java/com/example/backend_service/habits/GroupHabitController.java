@@ -2,12 +2,15 @@ package com.example.backend_service.habits;
 
 import com.example.backend_service.Student;
 import com.example.backend_service.StudentRepository;
+import com.example.backend_service.common.exception.ForbiddenException;
+import com.example.backend_service.common.exception.NotFoundException;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.type.TypeReference;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpStatus;
 import org.springframework.lang.NonNull;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,7 +39,6 @@ import java.util.stream.Collectors;
  */
 @RestController
 @RequestMapping("/api/students/{studentId}/group-habits")
-@CrossOrigin(origins = "*")
 public class GroupHabitController {
     private static final Logger logger = LoggerFactory.getLogger(GroupHabitController.class);
 
@@ -54,11 +56,11 @@ public class GroupHabitController {
      */
     @PostMapping
     public ResponseEntity<GroupHabitDto> createGroupHabit(
-            @PathVariable Long studentId,
+            @AuthenticationPrincipal Long authStudentId,
             @RequestBody GroupHabitDto dto) {
-        logger.info("POST /api/students/{}/group-habits - creating: {}", studentId, dto.getName());
+        logger.info("POST /api/students/{}/group-habits - creating: {}", authStudentId, dto.getName());
         GroupHabit entity = convertToEntity(dto);
-        entity.setStudentId(studentId);
+        entity.setStudentId(authStudentId);
         GroupHabit saved = groupHabitRepository.save(entity);
         logger.info("Group created with id={}", saved.getId());
         return ResponseEntity.ok(convertToDto(saved));
@@ -68,10 +70,10 @@ public class GroupHabitController {
      * Gets all group habits for a student.
      */
     @GetMapping
-    public ResponseEntity<List<GroupHabitDto>> getGroupHabits(@PathVariable Long studentId) {
-        logger.info("GET /api/students/{}/group-habits", studentId);
-        List<GroupHabit> entities = groupHabitRepository.findVisibleToStudent(studentId, String.valueOf(studentId));
-        logger.info("Found {} groups for student {}", entities.size(), studentId);
+    public ResponseEntity<List<GroupHabitDto>> getGroupHabits(@AuthenticationPrincipal Long authStudentId) {
+        logger.info("GET /api/students/{}/group-habits", authStudentId);
+        List<GroupHabit> entities = groupHabitRepository.findVisibleToStudent(authStudentId, String.valueOf(authStudentId));
+        logger.info("Found {} groups for student {}", entities.size(), authStudentId);
         List<GroupHabitDto> dtos = entities.stream()
                 .map(this::convertToDto)
                 .collect(Collectors.toList());
@@ -93,43 +95,49 @@ public class GroupHabitController {
      */
     @PutMapping("/{groupHabitId}")
     public ResponseEntity<GroupHabitDto> updateGroupHabit(
-            @PathVariable @NonNull Long studentId,
+            @AuthenticationPrincipal Long authStudentId,
             @PathVariable @NonNull Long groupHabitId,
             @RequestBody GroupHabitDto dto) {
-        return groupHabitRepository.findById(groupHabitId).map(existing -> {
-            existing.setName(dto.getName());
-            existing.setHabitName(dto.getHabitName());
-            existing.setDescription(dto.getDescription());
-            existing.setCode(dto.getCode());
-            existing.setInviteLink(dto.getInviteLink());
-            existing.setIconId(dto.getIconId());
-
-            try {
-                existing.setMembersJson(objectMapper.writeValueAsString(dto.getMembers()));
-            } catch (JsonProcessingException e) {
-                existing.setMembersJson("[]");
-            }
-
-            try {
-                Map<String, List<String>> memberProgress = normalizeMemberProgress(
-                        dto.getMemberProgress() != null ? dto.getMemberProgress() : readMemberProgress(existing.getMemberProgressJson()));
-                existing.setMemberProgressJson(objectMapper.writeValueAsString(memberProgress));
-                existing.setCompletedDatesJson(objectMapper.writeValueAsString(flattenMemberProgress(memberProgress)));
-            } catch (JsonProcessingException e) {
-                existing.setCompletedDatesJson("[]");
-                existing.setMemberProgressJson("{}");
-            }
-
-            GroupHabit updated = groupHabitRepository.save(existing);
-            return ResponseEntity.ok(convertToDto(updated));
-        }).orElse(ResponseEntity.notFound().build());
+        GroupHabit existing = groupHabitRepository.findById(groupHabitId)
+                .orElseThrow(NotFoundException::new);
+        if (!authStudentId.equals(existing.getStudentId())) {
+            throw new ForbiddenException();
+        }
+        existing.setName(dto.getName());
+        existing.setHabitName(dto.getHabitName());
+        existing.setDescription(dto.getDescription());
+        existing.setCode(dto.getCode());
+        existing.setInviteLink(dto.getInviteLink());
+        existing.setIconId(dto.getIconId());
+        try {
+            existing.setMembersJson(objectMapper.writeValueAsString(dto.getMembers()));
+        } catch (JsonProcessingException e) {
+            existing.setMembersJson("[]");
+        }
+        try {
+            Map<String, List<String>> memberProgress = normalizeMemberProgress(
+                    dto.getMemberProgress() != null ? dto.getMemberProgress() : readMemberProgress(existing.getMemberProgressJson()));
+            existing.setMemberProgressJson(objectMapper.writeValueAsString(memberProgress));
+            existing.setCompletedDatesJson(objectMapper.writeValueAsString(flattenMemberProgress(memberProgress)));
+        } catch (JsonProcessingException e) {
+            existing.setCompletedDatesJson("[]");
+            existing.setMemberProgressJson("{}");
+        }
+        return ResponseEntity.ok(convertToDto(groupHabitRepository.save(existing)));
     }
 
     /**
      * Deletes a group habit.
      */
     @DeleteMapping("/{groupHabitId}")
-    public ResponseEntity<Void> deleteGroupHabit(@PathVariable @NonNull Long groupHabitId) {
+    public ResponseEntity<Void> deleteGroupHabit(
+            @AuthenticationPrincipal Long authStudentId,
+            @PathVariable @NonNull Long groupHabitId) {
+        GroupHabit existing = groupHabitRepository.findById(groupHabitId)
+                .orElseThrow(NotFoundException::new);
+        if (!authStudentId.equals(existing.getStudentId())) {
+            throw new ForbiddenException();
+        }
         groupHabitRepository.deleteById(groupHabitId);
         return ResponseEntity.noContent().build();
     }
@@ -139,8 +147,9 @@ public class GroupHabitController {
      */
     @PostMapping("/join")
     public ResponseEntity<GroupHabitDto> joinGroupHabit(
-            @PathVariable Long studentId,
+            @AuthenticationPrincipal Long authStudentId,
             @RequestParam String code) {
+        Long studentId = authStudentId;
         String normalizedCode = code == null ? "" : code.trim().toUpperCase();
         logger.info("POST /api/students/{}/group-habits/join?code={}", studentId, normalizedCode);
         var optional = groupHabitRepository.findByCodeIgnoreCase(normalizedCode);

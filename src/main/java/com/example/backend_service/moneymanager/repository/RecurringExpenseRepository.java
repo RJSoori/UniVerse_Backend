@@ -8,4 +8,5 @@ import java.util.List;
 public interface RecurringExpenseRepository extends JpaRepository<RecurringExpense, String> {
     List<RecurringExpense> findByStudentId(Long studentId);
     void deleteByStudentId(Long studentId);
+    void deleteByWalletId(String walletId);
 }

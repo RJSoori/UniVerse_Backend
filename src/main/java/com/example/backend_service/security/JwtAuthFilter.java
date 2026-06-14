@@ -3,6 +3,7 @@ package com.example.backend_service.security;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.HttpHeaders;
@@ -41,10 +42,24 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             return;
         }
 
-        // Extract and validate JWT, set SecurityContext if valid
-        String header = request.getHeader(HttpHeaders.AUTHORIZATION);
-        if (header != null && header.startsWith("Bearer ")) {
-            String token = header.substring(7);
+        // Extract JWT: prefer httpOnly cookie, fall back to Authorization: Bearer header
+        String token = null;
+        Cookie[] cookies = request.getCookies();
+        if (cookies != null) {
+            for (Cookie c : cookies) {
+                if ("auth_token".equals(c.getName())) {
+                    token = c.getValue();
+                    break;
+                }
+            }
+        }
+        if (token == null) {
+            String header = request.getHeader(HttpHeaders.AUTHORIZATION);
+            if (header != null && header.startsWith("Bearer ")) {
+                token = header.substring(7);
+            }
+        }
+        if (token != null) {
             try {
                 JwtService.ParsedToken parsed = jwtService.parse(token);
                 var auth = new UsernamePasswordAuthenticationToken(

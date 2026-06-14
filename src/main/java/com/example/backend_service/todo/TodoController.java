@@ -1,16 +1,14 @@
 package com.example.backend_service.todo;
 
-import org.springframework.http.ResponseEntity;
+import com.example.backend_service.common.exception.ForbiddenException;
+import com.example.backend_service.common.exception.NotFoundException;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
 
-/**
- * REST controller for managing To-Do items.
- * Handles CRUD operations for student todo lists.
- */
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/todos")
 public class TodoController {
@@ -21,45 +19,31 @@ public class TodoController {
         this.todoRepository = todoRepository;
     }
 
-    /**
-     * Fetches all todos for a specific student.
-     */
     @GetMapping("/student/{studentId}")
-    public ResponseEntity<List<Todo>> getTodosByStudent(@PathVariable Long studentId) {
-        List<Todo> todos = todoRepository.findByStudentId(studentId);
-        return ResponseEntity.ok(todos);
+    public List<Todo> getTodosByStudent(@AuthenticationPrincipal Long authStudentId) {
+        return todoRepository.findByStudentId(authStudentId);
     }
 
-    /**
-     * Creates a new todo item.
-     */
     @PostMapping
-    public ResponseEntity<Todo> createTodo(@RequestBody Todo todo) {
-        if (todo.getStudentId() == null || todo.getStudentId() <= 0) {
-            return ResponseEntity.badRequest().build();
-        }
+    @ResponseStatus(HttpStatus.CREATED)
+    public Todo createTodo(@AuthenticationPrincipal Long authStudentId, @RequestBody Todo todo) {
         if (todo.getTitle() == null || todo.getTitle().isBlank()) {
-            return ResponseEntity.badRequest().build();
+            throw new IllegalArgumentException("title is required");
         }
-        
-        Todo savedTodo = todoRepository.save(todo);
-        return ResponseEntity.ok(savedTodo);
+        todo.setId(null);
+        todo.setStudentId(authStudentId);
+        return todoRepository.save(todo);
     }
 
-    /**
-     * Updates an existing todo item.
-     */
     @PutMapping("/{id}")
-    public ResponseEntity<Todo> updateTodo(@PathVariable Long id, @RequestBody Todo updateData) {
-        Optional<Todo> optional = todoRepository.findById(id);
-        
-        if (optional.isEmpty()) {
-            return ResponseEntity.notFound().build();
+    public Todo updateTodo(
+            @AuthenticationPrincipal Long authStudentId,
+            @PathVariable Long id,
+            @RequestBody Todo updateData) {
+        Todo todo = todoRepository.findById(id).orElseThrow(NotFoundException::new);
+        if (!authStudentId.equals(todo.getStudentId())) {
+            throw new ForbiddenException();
         }
-
-        Todo todo = optional.get();
-        
-        // Update allowed fields
         if (updateData.getTitle() != null && !updateData.getTitle().isBlank()) {
             todo.setTitle(updateData.getTitle());
         }
@@ -84,42 +68,26 @@ public class TodoController {
         if (updateData.getReminderEnabled() != null) {
             todo.setReminderEnabled(updateData.getReminderEnabled());
         }
-
-        Todo savedTodo = todoRepository.save(todo);
-        return ResponseEntity.ok(savedTodo);
+        return todoRepository.save(todo);
     }
 
-    /**
-     * Deletes a specific todo item.
-     */
     @DeleteMapping("/{id}")
-    public ResponseEntity<Map<String, String>> deleteTodo(@PathVariable Long id) {
-        if (!todoRepository.existsById(id)) {
-            return ResponseEntity.notFound().build();
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteTodo(@AuthenticationPrincipal Long authStudentId, @PathVariable Long id) {
+        Todo todo = todoRepository.findById(id).orElseThrow(NotFoundException::new);
+        if (!authStudentId.equals(todo.getStudentId())) {
+            throw new ForbiddenException();
         }
-        
         todoRepository.deleteById(id);
-        Map<String, String> response = new HashMap<>();
-        response.put("message", "Todo deleted successfully");
-        return ResponseEntity.ok(response);
     }
 
-    /**
-     * Bulk saves/replaces all todos for a student.
-     * Deletes old todos and creates new ones.
-     */
+    @Transactional
     @PutMapping("/student/{studentId}/bulk")
-    public ResponseEntity<List<Todo>> bulkSaveTodos(@PathVariable Long studentId, @RequestBody List<Todo> todos) {
-        // Delete all existing todos for this student
-        todoRepository.deleteByStudentId(studentId);
-
-        // Set student ID for all new todos
-        for (Todo todo : todos) {
-            todo.setStudentId(studentId);
-        }
-
-        // Save all new todos
-        List<Todo> savedTodos = todoRepository.saveAll(todos);
-        return ResponseEntity.ok(savedTodos);
+    public List<Todo> bulkSaveTodos(
+            @AuthenticationPrincipal Long authStudentId,
+            @RequestBody List<Todo> todos) {
+        todoRepository.deleteByStudentId(authStudentId);
+        todos.forEach(todo -> todo.setStudentId(authStudentId));
+        return todoRepository.saveAll(todos);
     }
 }
