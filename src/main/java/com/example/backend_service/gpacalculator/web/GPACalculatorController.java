@@ -265,16 +265,16 @@ public class GPACalculatorController {
     }
 
     @GetMapping("/analytics/cgpa")
-    public ResponseEntity<Map<String, Double>> calculateCGPA(@AuthenticationPrincipal Long authStudentId) {
+    public ResponseEntity<Map<String, Object>> calculateCGPA(@AuthenticationPrincipal Long authStudentId) {
         GPASettings settings = gpaCalculatorService.getOrCreateSettings(authStudentId);
         if (settings.getId() == null) {
             settings = settingsRepository.save(settings);
         }
         double cgpa = gpaCalculatorService.calculateCGPA(authStudentId, settings);
         String degreeClass = gpaCalculatorService.classifyDegreeClass(cgpa, settings);
-        Map<String, Double> response = new HashMap<>();
+        Map<String, Object> response = new HashMap<>();
         response.put("cgpa", cgpa);
-        response.put("degreeClass", (double) degreeClass.hashCode()); // Placeholder for string
+        response.put("degreeClass", degreeClass);
         return ResponseEntity.ok(response);
     }
 

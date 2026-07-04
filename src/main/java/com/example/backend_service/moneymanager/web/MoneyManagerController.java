@@ -285,11 +285,6 @@ public class MoneyManagerController {
         if (walletId == null || walletId.isBlank()) {
             throw new NotFoundException();
         }
-        walletRepository.findById(walletId).ifPresent(wallet -> {
-            if (!wallet.getStudentId().equals(authStudentId)) {
-                throw new ForbiddenException();
-            }
-        });
         walletRepository.findByIdAndStudentId(walletId, authStudentId)
                 .orElseThrow(NotFoundException::new);
     }

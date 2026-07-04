@@ -1,6 +1,8 @@
 package com.example.backend_service.marketplace.service;
 
+import com.example.backend_service.common.exception.ConflictException;
 import com.example.backend_service.common.exception.NotFoundException;
+import com.example.backend_service.common.exception.UnauthorizedException;
 import com.example.backend_service.marketplace.dto.MarketplaceItemRequest;
 import com.example.backend_service.marketplace.dto.MarketplaceItemResponse;
 import com.example.backend_service.marketplace.dto.SellerAuthResponse;
@@ -8,6 +10,7 @@ import com.example.backend_service.marketplace.dto.SellerLoginRequest;
 import com.example.backend_service.marketplace.dto.SellerRequest;
 import com.example.backend_service.marketplace.dto.SellerResponse;
 import com.example.backend_service.marketplace.dto.SellerUpdateRequest;
+import com.example.backend_service.marketplace.enums.SellerStatus;
 import com.example.backend_service.marketplace.model.MarketplaceItem;
 import com.example.backend_service.marketplace.model.Seller;
 import com.example.backend_service.marketplace.repository.MarketplaceItemRepository;
@@ -41,10 +44,10 @@ public class MarketplaceService {
      */
     public SellerAuthResponse registerSeller(SellerRequest request) {
         if (sellerRepository.findByEmail(request.getEmail()).isPresent()) {
-            throw new RuntimeException("Email already registered");
+            throw new ConflictException("Email already registered");
         }
         if (sellerRepository.findByUsername(request.getUsername()).isPresent()) {
-            throw new RuntimeException("Username already taken");
+            throw new ConflictException("Username already taken");
         }
         Seller seller = new Seller();
         seller.setStoreName(request.getStoreName());
@@ -65,9 +68,9 @@ public class MarketplaceService {
      */
     public SellerAuthResponse loginSeller(SellerLoginRequest request) {
         Seller seller = sellerRepository.findByUsername(request.getUsername())
-                .orElseThrow(() -> new RuntimeException("Invalid username or password"));
+                .orElseThrow(() -> new UnauthorizedException("Invalid username or password"));
         if (!passwordEncoder.matches(request.getPassword(), seller.getPassword())) {
-            throw new RuntimeException("Invalid username or password");
+            throw new UnauthorizedException("Invalid username or password");
         }
         String token = sellerJwtService.issue(seller.getId());
         return new SellerAuthResponse(token, toSellerResponse(seller));
@@ -121,6 +124,19 @@ public SellerResponse updateSeller(Long sellerId, SellerUpdateRequest request) {
     Seller updated = sellerRepository.save(seller);
     return toSellerResponse(updated);
 }
+
+    /**
+     * Updates a seller's verification status. Used by admins to approve or reject
+     * a seller's marketplace registration.
+     * Throws NotFoundException if seller doesn't exist.
+     */
+    public SellerResponse updateSellerStatus(Long sellerId, SellerStatus status) {
+        Seller seller = sellerRepository.findById(sellerId)
+                .orElseThrow(() -> new NotFoundException("Seller not found with id: " + sellerId));
+        seller.setStatus(status);
+        Seller updated = sellerRepository.save(seller);
+        return toSellerResponse(updated);
+    }
 
     /**
      * Creates a new marketplace item after validating that the seller exists.
@@ -197,6 +213,8 @@ public SellerResponse updateSeller(Long sellerId, SellerUpdateRequest request) {
         response.setEmail(seller.getEmail());
         response.setPhone(seller.getPhone());
         response.setDescription(seller.getDescription());
+        response.setStatus(seller.getStatus() != null ? seller.getStatus().name() : null);
+        response.setRegisteredAt(seller.getRegisteredAt());
         return response;
     }
 

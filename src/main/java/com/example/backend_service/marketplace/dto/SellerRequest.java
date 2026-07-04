@@ -2,6 +2,7 @@ package com.example.backend_service.marketplace.dto;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 /**
  * Data transfer object for seller registration requests.
@@ -20,6 +21,7 @@ public class SellerRequest {
     private String username;
 
     @NotBlank
+    @Size(min = 6, message = "Password must be at least 6 characters")
     private String password;
 
     private String phone;

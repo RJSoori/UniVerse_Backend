@@ -20,13 +20,16 @@ public class SecurityConfig {
     private final JwtAuthFilter jwtAuthFilter;
     private final SellerJwtAuthFilter sellerJwtAuthFilter;
     private final RecruiterJwtAuthFilter recruiterJwtAuthFilter;
+    private final RateLimitFilter rateLimitFilter;
 
     public SecurityConfig(JwtAuthFilter jwtAuthFilter,
                           SellerJwtAuthFilter sellerJwtAuthFilter,
-                          RecruiterJwtAuthFilter recruiterJwtAuthFilter) {
+                          RecruiterJwtAuthFilter recruiterJwtAuthFilter,
+                          RateLimitFilter rateLimitFilter) {
         this.jwtAuthFilter = jwtAuthFilter;
         this.sellerJwtAuthFilter = sellerJwtAuthFilter;
         this.recruiterJwtAuthFilter = recruiterJwtAuthFilter;
+        this.rateLimitFilter = rateLimitFilter;
     }
 
     @Bean
@@ -61,7 +64,8 @@ public class SecurityConfig {
                         .anyRequest().authenticated())
                 .addFilterBefore(recruiterJwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
                 .addFilterBefore(sellerJwtAuthFilter, RecruiterJwtAuthFilter.class)
-                .addFilterBefore(jwtAuthFilter, SellerJwtAuthFilter.class);
+                .addFilterBefore(jwtAuthFilter, SellerJwtAuthFilter.class)
+                .addFilterBefore(rateLimitFilter, JwtAuthFilter.class);
         return http.build();
     }
 }

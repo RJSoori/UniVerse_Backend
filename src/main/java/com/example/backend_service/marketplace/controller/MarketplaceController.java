@@ -9,10 +9,12 @@ import com.example.backend_service.marketplace.dto.SellerLoginRequest;
 import com.example.backend_service.marketplace.dto.SellerRequest;
 import com.example.backend_service.marketplace.dto.SellerResponse;
 import com.example.backend_service.marketplace.dto.SellerUpdateRequest;
+import com.example.backend_service.marketplace.enums.SellerStatus;
 import com.example.backend_service.marketplace.model.MarketplaceItem;
 import com.example.backend_service.marketplace.repository.MarketplaceItemRepository;
 import com.example.backend_service.marketplace.service.MarketplaceService;
 import com.example.backend_service.marketplace.service.SellerJwtService;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -35,7 +37,7 @@ public class MarketplaceController {
     private MarketplaceItemRepository itemRepository;
 
     @PostMapping("/sellers/register")
-    public ResponseEntity<SellerAuthResponse> registerSeller(@RequestBody SellerRequest request) {
+    public ResponseEntity<SellerAuthResponse> registerSeller(@Valid @RequestBody SellerRequest request) {
         return ResponseEntity.ok(marketplaceService.registerSeller(request));
     }
 
@@ -63,6 +65,12 @@ public class MarketplaceController {
     @GetMapping("/sellers/{id}")
     public ResponseEntity<SellerResponse> getSellerById(@PathVariable Long id) {
         return ResponseEntity.ok(marketplaceService.getSellerById(id));
+    }
+
+    @PutMapping("/sellers/{id}/verify")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<SellerResponse> verifySeller(@PathVariable Long id, @RequestParam String status) {
+        return ResponseEntity.ok(marketplaceService.updateSellerStatus(id, SellerStatus.valueOf(status.toUpperCase())));
     }
 
     @PutMapping("/sellers/me")
