@@ -7,9 +7,11 @@ import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 
 public interface TransactionRepository extends JpaRepository<TransactionRecord, String> {
     List<TransactionRecord> findByStudentId(Long studentId);
+    Optional<TransactionRecord> findByIdAndStudentId(String id, Long studentId);
     void deleteByStudentId(Long studentId);
     void deleteByWalletId(String walletId);
 

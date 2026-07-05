@@ -18,6 +18,7 @@ import com.example.backend_service.moneymanager.repository.RecurringExpenseRepos
 import com.example.backend_service.moneymanager.repository.TransactionRepository;
 import com.example.backend_service.moneymanager.repository.WalletRepository;
 import com.example.backend_service.moneymanager.service.BudgetValidationService;
+import com.example.backend_service.notifications.PushNotificationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -50,6 +51,7 @@ public class MoneyManagerController {
     private final BudgetPlanRepository budgetPlanRepository;
     private final MoneyManagerSettingsRepository settingsRepository;
     private final BudgetValidationService budgetValidationService;
+    private final PushNotificationService pushNotificationService;
 
     public MoneyManagerController(
             WalletRepository walletRepository,
@@ -58,7 +60,8 @@ public class MoneyManagerController {
             CategoryBudgetRepository categoryBudgetRepository,
             BudgetPlanRepository budgetPlanRepository,
             MoneyManagerSettingsRepository settingsRepository,
-            BudgetValidationService budgetValidationService) {
+            BudgetValidationService budgetValidationService,
+            PushNotificationService pushNotificationService) {
         this.walletRepository = walletRepository;
         this.transactionRepository = transactionRepository;
         this.recurringExpenseRepository = recurringExpenseRepository;
@@ -66,6 +69,7 @@ public class MoneyManagerController {
         this.budgetPlanRepository = budgetPlanRepository;
         this.settingsRepository = settingsRepository;
         this.budgetValidationService = budgetValidationService;
+        this.pushNotificationService = pushNotificationService;
     }
 
     @GetMapping("/wallets")
@@ -136,6 +140,8 @@ public class MoneyManagerController {
                     transactionRecord.getAmount(), month)) {
                 log.warn("student={} budget exceeded for category={} month={}", authStudentId,
                         transactionRecord.getCategory(), month);
+                pushNotificationService.sendToStudent(authStudentId, "Budget exceeded",
+                        "You've gone over your " + transactionRecord.getCategory() + " budget for " + month + ".");
             }
         }
         TransactionRecord saved = transactionRepository.save(transactionRecord);
@@ -158,6 +164,25 @@ public class MoneyManagerController {
         List<TransactionRecord> saved = transactionRepository.saveAll(transactions);
         log.info("student={} replaced transactions count={}", authStudentId, saved.size());
         return saved;
+    }
+
+    @PutMapping("/transactions/{id}")
+    public TransactionRecord updateTransaction(@AuthenticationPrincipal Long authStudentId, @PathVariable String id,
+            @Valid @RequestBody TransactionRecord transactionRecord) {
+        transactionRepository.findByIdAndStudentId(id, authStudentId)
+                .orElseThrow(NotFoundException::new);
+        ensureWalletBelongsToStudent(transactionRecord.getWalletId(), authStudentId);
+        transactionRecord.setId(id);
+        transactionRecord.setStudentId(authStudentId);
+        return transactionRepository.save(transactionRecord);
+    }
+
+    @DeleteMapping("/transactions/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteTransaction(@AuthenticationPrincipal Long authStudentId, @PathVariable String id) {
+        transactionRepository.findByIdAndStudentId(id, authStudentId)
+                .orElseThrow(NotFoundException::new);
+        transactionRepository.deleteById(id);
     }
 
     @GetMapping("/recurring-expenses")
@@ -193,6 +218,25 @@ public class MoneyManagerController {
         return saved;
     }
 
+    @PutMapping("/recurring-expenses/{id}")
+    public RecurringExpense updateRecurringExpense(@AuthenticationPrincipal Long authStudentId,
+            @PathVariable String id, @Valid @RequestBody RecurringExpense recurringExpense) {
+        recurringExpenseRepository.findByIdAndStudentId(id, authStudentId)
+                .orElseThrow(NotFoundException::new);
+        ensureWalletBelongsToStudent(recurringExpense.getWalletId(), authStudentId);
+        recurringExpense.setId(id);
+        recurringExpense.setStudentId(authStudentId);
+        return recurringExpenseRepository.save(recurringExpense);
+    }
+
+    @DeleteMapping("/recurring-expenses/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteRecurringExpense(@AuthenticationPrincipal Long authStudentId, @PathVariable String id) {
+        recurringExpenseRepository.findByIdAndStudentId(id, authStudentId)
+                .orElseThrow(NotFoundException::new);
+        recurringExpenseRepository.deleteById(id);
+    }
+
     @GetMapping("/category-budgets")
     public List<CategoryBudget> getCategoryBudgets(@AuthenticationPrincipal Long authStudentId) {
         return categoryBudgetRepository.findByStudentId(authStudentId);
@@ -223,6 +267,24 @@ public class MoneyManagerController {
         return saved;
     }
 
+    @PutMapping("/category-budgets/{id}")
+    public CategoryBudget updateCategoryBudget(@AuthenticationPrincipal Long authStudentId, @PathVariable String id,
+            @Valid @RequestBody CategoryBudget categoryBudget) {
+        categoryBudgetRepository.findByIdAndStudentId(id, authStudentId)
+                .orElseThrow(NotFoundException::new);
+        categoryBudget.setId(id);
+        categoryBudget.setStudentId(authStudentId);
+        return categoryBudgetRepository.save(categoryBudget);
+    }
+
+    @DeleteMapping("/category-budgets/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteCategoryBudget(@AuthenticationPrincipal Long authStudentId, @PathVariable String id) {
+        categoryBudgetRepository.findByIdAndStudentId(id, authStudentId)
+                .orElseThrow(NotFoundException::new);
+        categoryBudgetRepository.deleteById(id);
+    }
+
     @GetMapping("/budgets/current")
     public List<BudgetPlan> getBudgets(@AuthenticationPrincipal Long authStudentId) {
         return budgetPlanRepository.findByStudentId(authStudentId);
@@ -249,6 +311,24 @@ public class MoneyManagerController {
         List<BudgetPlan> saved = budgetPlanRepository.saveAll(budgets);
         log.info("student={} replaced budgets count={}", authStudentId, saved.size());
         return saved;
+    }
+
+    @PutMapping("/budgets/{id}")
+    public BudgetPlan updateBudget(@AuthenticationPrincipal Long authStudentId, @PathVariable String id,
+            @Valid @RequestBody BudgetPlan budgetPlan) {
+        budgetPlanRepository.findByIdAndStudentId(id, authStudentId)
+                .orElseThrow(NotFoundException::new);
+        budgetPlan.setId(id);
+        budgetPlan.setStudentId(authStudentId);
+        return budgetPlanRepository.save(budgetPlan);
+    }
+
+    @DeleteMapping("/budgets/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteBudget(@AuthenticationPrincipal Long authStudentId, @PathVariable String id) {
+        budgetPlanRepository.findByIdAndStudentId(id, authStudentId)
+                .orElseThrow(NotFoundException::new);
+        budgetPlanRepository.deleteById(id);
     }
 
     @GetMapping("/settings")
