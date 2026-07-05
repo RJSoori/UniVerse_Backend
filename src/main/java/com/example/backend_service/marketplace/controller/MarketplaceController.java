@@ -1,5 +1,6 @@
 package com.example.backend_service.marketplace.controller;
 
+import com.example.backend_service.AzureBlobService;
 import com.example.backend_service.common.exception.ForbiddenException;
 import com.example.backend_service.common.exception.NotFoundException;
 import com.example.backend_service.marketplace.dto.MarketplaceItemRequest;
@@ -20,7 +21,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.List;
 
 @RestController
@@ -35,6 +38,9 @@ public class MarketplaceController {
 
     @Autowired
     private MarketplaceItemRepository itemRepository;
+
+    @Autowired
+    private AzureBlobService azureBlobService;
 
     @PostMapping("/sellers/register")
     public ResponseEntity<SellerAuthResponse> registerSeller(@Valid @RequestBody SellerRequest request) {
@@ -107,6 +113,16 @@ public class MarketplaceController {
         Long sellerId = sellerJwtService.parse(sellerToken);
         request.setSellerId(sellerId);
         return marketplaceService.createItem(request);
+    }
+
+    @PostMapping("/items/{id}/image")
+    public MarketplaceItemResponse uploadItemImage(
+            @RequestHeader("X-Seller-Token") String sellerToken,
+            @PathVariable Long id,
+            @RequestParam("image") MultipartFile image) throws IOException {
+        Long sellerId = sellerJwtService.parse(sellerToken);
+        String imageUrl = azureBlobService.uploadFile(image);
+        return marketplaceService.updateItemImage(id, sellerId, imageUrl);
     }
 
     @DeleteMapping("/items/{id}")

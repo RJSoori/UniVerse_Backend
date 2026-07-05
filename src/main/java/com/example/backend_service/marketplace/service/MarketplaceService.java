@@ -191,6 +191,21 @@ public SellerResponse updateSeller(Long sellerId, SellerUpdateRequest request) {
     }
 
     /**
+     * Updates a marketplace item's image URL. Validates that the requesting seller owns the item.
+     * Throws NotFoundException if item doesn't exist, ForbiddenException if the seller doesn't own it.
+     */
+    public MarketplaceItemResponse updateItemImage(Long itemId, Long sellerId, String imageUrl) {
+        MarketplaceItem item = itemRepository.findById(itemId)
+                .orElseThrow(() -> new NotFoundException("Item not found with id: " + itemId));
+        if (item.getSeller() == null || !sellerId.equals(item.getSeller().getId())) {
+            throw new com.example.backend_service.common.exception.ForbiddenException();
+        }
+        item.setImageUrl(imageUrl);
+        MarketplaceItem saved = itemRepository.save(item);
+        return toItemResponse(saved);
+    }
+
+    /**
      * Permanently removes a marketplace item from the system.
      * Validates that item exists before attempting deletion.
      * Throws NotFoundException if item ID doesn't exist.
