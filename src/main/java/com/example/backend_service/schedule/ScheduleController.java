@@ -58,6 +58,7 @@ public class ScheduleController {
         ev.setStartTime(update.getStartTime());
         ev.setEndTime(update.getEndTime());
         ev.setDescription(update.getDescription());
+        ev.setType(update.getType());
         ScheduleEvent saved = repository.save(ev);
         logger.info("Event updated: id={}", saved.getId());
         return ResponseEntity.ok(saved);
