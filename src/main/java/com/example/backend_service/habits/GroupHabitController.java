@@ -4,6 +4,7 @@ import com.example.backend_service.Student;
 import com.example.backend_service.StudentRepository;
 import com.example.backend_service.common.exception.ForbiddenException;
 import com.example.backend_service.common.exception.NotFoundException;
+import com.example.backend_service.notifications.PushNotificationService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -44,11 +45,14 @@ public class GroupHabitController {
 
     private final GroupHabitRepository groupHabitRepository;
     private final StudentRepository studentRepository;
+    private final PushNotificationService pushNotificationService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public GroupHabitController(GroupHabitRepository groupHabitRepository, StudentRepository studentRepository) {
+    public GroupHabitController(GroupHabitRepository groupHabitRepository, StudentRepository studentRepository,
+            PushNotificationService pushNotificationService) {
         this.groupHabitRepository = groupHabitRepository;
         this.studentRepository = studentRepository;
+        this.pushNotificationService = pushNotificationService;
     }
 
     /**
@@ -84,10 +88,24 @@ public class GroupHabitController {
      * Gets a specific group habit by ID.
      */
     @GetMapping("/{groupHabitId}")
-    public ResponseEntity<GroupHabitDto> getGroupHabit(@PathVariable @NonNull Long groupHabitId) {
-        return groupHabitRepository.findById(groupHabitId)
-                .map(entity -> ResponseEntity.ok(convertToDto(entity)))
-                .orElse(ResponseEntity.notFound().build());
+    public ResponseEntity<GroupHabitDto> getGroupHabit(
+            @AuthenticationPrincipal Long authStudentId,
+            @PathVariable @NonNull Long groupHabitId) {
+        GroupHabit existing = groupHabitRepository.findById(groupHabitId)
+                .orElseThrow(NotFoundException::new);
+        if (!isVisibleToStudent(existing, authStudentId)) {
+            throw new ForbiddenException();
+        }
+        return ResponseEntity.ok(convertToDto(existing));
+    }
+
+    /** Mirrors {@link GroupHabitRepository#findVisibleToStudent}: visible to the owner or any listed member. */
+    private boolean isVisibleToStudent(GroupHabit entity, Long studentId) {
+        if (studentId.equals(entity.getStudentId())) {
+            return true;
+        }
+        String membersJson = entity.getMembersJson();
+        return membersJson != null && membersJson.contains("\"id\":\"" + studentId + "\"");
     }
 
     /**
@@ -204,6 +222,8 @@ public class GroupHabitController {
                 existing.setCompletedDatesJson(objectMapper.writeValueAsString(flattenMemberProgress(memberProgress)));
                 groupHabitRepository.save(existing);
                 logger.info("Member added successfully. Total members: {}", members.size());
+                pushNotificationService.sendToStudent(existing.getStudentId(), "New group member",
+                        memberName + " joined " + existing.getName() + ".");
             } else {
                 logger.info("User {} already a member of group", studentId);
             }
