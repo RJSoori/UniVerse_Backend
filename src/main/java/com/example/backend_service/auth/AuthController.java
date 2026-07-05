@@ -1,5 +1,6 @@
 package com.example.backend_service.auth;
 
+import com.example.backend_service.AzureBlobService;
 import com.example.backend_service.Role;
 import com.example.backend_service.Student;
 import com.example.backend_service.StudentRepository;
@@ -21,7 +22,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.Map;
 
 @RestController
@@ -37,13 +40,16 @@ public class AuthController {
     private final StudentRepository studentRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final AzureBlobService azureBlobService;
 
     public AuthController(StudentRepository studentRepository,
                           PasswordEncoder passwordEncoder,
-                          JwtService jwtService) {
+                          JwtService jwtService,
+                          AzureBlobService azureBlobService) {
         this.studentRepository = studentRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
+        this.azureBlobService = azureBlobService;
     }
 
     private void setAuthCookie(HttpServletResponse response, String token) {
@@ -132,6 +138,18 @@ public class AuthController {
         }
         if (req.name() != null) s.setName(req.name());
         if (req.degree() != null) s.setDegree(req.degree());
+        Student saved = studentRepository.save(s);
+        return ResponseEntity.ok(UserDto.from(saved));
+    }
+
+    @PostMapping("/me/photo")
+    public ResponseEntity<UserDto> updateProfilePicture(
+            @AuthenticationPrincipal Long authStudentId,
+            @RequestParam("photo") MultipartFile photo) throws IOException {
+        Student s = studentRepository.findById(authStudentId)
+                .orElseThrow(NotFoundException::new);
+        String imageUrl = azureBlobService.uploadFile(photo);
+        s.setProfilePictureUrl(imageUrl);
         Student saved = studentRepository.save(s);
         return ResponseEntity.ok(UserDto.from(saved));
     }

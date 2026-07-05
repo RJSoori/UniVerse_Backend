@@ -19,6 +19,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import jakarta.servlet.http.HttpServletResponse;
 
+import com.example.backend_service.AzureBlobService;
 import com.example.backend_service.Role;
 import com.example.backend_service.Student;
 import com.example.backend_service.StudentRepository;
@@ -40,6 +41,9 @@ class AuthControllerTest {
 
     @Mock
     private JwtService jwtService;
+
+    @Mock
+    private AzureBlobService azureBlobService;
 
     @InjectMocks
     private AuthController controller;
@@ -68,7 +72,7 @@ class AuthControllerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().token()).isEqualTo("token-7");
-        assertThat(response.getBody().user()).isEqualTo(new UserDto(7L, "nina", "Nina", "nina@example.com", "CS", Role.STUDENT, LocalDateTime.of(2025, 1, 1, 0, 0, 0)));
+        assertThat(response.getBody().user()).isEqualTo(new UserDto(7L, "nina", "Nina", "nina@example.com", "CS", null, Role.STUDENT, LocalDateTime.of(2025, 1, 1, 0, 0, 0)));
         verify(studentRepository).save(any(Student.class));
     }
 
@@ -119,6 +123,6 @@ class AuthControllerTest {
         ResponseEntity<UserDto> response = controller.updateMe(7L, new UpdateProfileRequest("Nina New", "nina.new@example.com", "IT"));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).isEqualTo(new UserDto(7L, "nina", "Nina New", "nina.new@example.com", "IT", Role.STUDENT, LocalDateTime.of(2025, 1, 1, 0, 0, 0)));
+        assertThat(response.getBody()).isEqualTo(new UserDto(7L, "nina", "Nina New", "nina.new@example.com", "IT", null, Role.STUDENT, LocalDateTime.of(2025, 1, 1, 0, 0, 0)));
     }
 }
