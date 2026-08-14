@@ -9,6 +9,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import static org.mockito.ArgumentMatchers.any;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -16,7 +17,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import jakarta.servlet.http.HttpServletResponse;
 
+import com.example.backend_service.AzureBlobService;
 import com.example.backend_service.Role;
 import com.example.backend_service.Student;
 import com.example.backend_service.StudentRepository;
@@ -38,6 +41,9 @@ class AuthControllerTest {
 
     @Mock
     private JwtService jwtService;
+
+    @Mock
+    private AzureBlobService azureBlobService;
 
     @InjectMocks
     private AuthController controller;
@@ -61,12 +67,12 @@ class AuthControllerTest {
         when(studentRepository.save(any(Student.class))).thenReturn(saved);
         when(jwtService.issue(7L, Role.STUDENT)).thenReturn("token-7");
 
-        ResponseEntity<AuthResponse> response = controller.register(request);
+        ResponseEntity<AuthResponse> response = controller.register(request, mock(HttpServletResponse.class));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(response.getBody()).isNotNull();
         assertThat(response.getBody().token()).isEqualTo("token-7");
-        assertThat(response.getBody().user()).isEqualTo(new UserDto(7L, "nina", "Nina", "nina@example.com", "CS", Role.STUDENT, LocalDateTime.of(2025, 1, 1, 0, 0, 0)));
+        assertThat(response.getBody().user()).isEqualTo(new UserDto(7L, "nina", "Nina", "nina@example.com", "CS", null, Role.STUDENT, LocalDateTime.of(2025, 1, 1, 0, 0, 0)));
         verify(studentRepository).save(any(Student.class));
     }
 
@@ -75,7 +81,7 @@ class AuthControllerTest {
         when(studentRepository.findByUsername("nina")).thenReturn(Optional.of(new Student()));
         when(passwordEncoder.matches("wrong", null)).thenReturn(false);
 
-        ResponseEntity<?> response = controller.login(new LoginRequest("nina", "wrong"));
+        ResponseEntity<?> response = controller.login(new LoginRequest("nina", "wrong"), mock(HttpServletResponse.class));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
         verify(jwtService, never()).issue(any(), any());
@@ -117,6 +123,6 @@ class AuthControllerTest {
         ResponseEntity<UserDto> response = controller.updateMe(7L, new UpdateProfileRequest("Nina New", "nina.new@example.com", "IT"));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).isEqualTo(new UserDto(7L, "nina", "Nina New", "nina.new@example.com", "IT", Role.STUDENT, LocalDateTime.of(2025, 1, 1, 0, 0, 0)));
+        assertThat(response.getBody()).isEqualTo(new UserDto(7L, "nina", "Nina New", "nina.new@example.com", "IT", null, Role.STUDENT, LocalDateTime.of(2025, 1, 1, 0, 0, 0)));
     }
 }

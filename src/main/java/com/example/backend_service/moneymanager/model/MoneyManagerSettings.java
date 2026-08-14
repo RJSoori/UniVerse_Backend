@@ -4,9 +4,12 @@ import com.example.backend_service.common.model.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 
 @Entity
-@Table(name = "money_settings")
+@Table(name = "money_settings", uniqueConstraints = {
+        @UniqueConstraint(columnNames = {"student_id"})
+})
 public class MoneyManagerSettings extends BaseEntity {
 
     @com.fasterxml.jackson.annotation.JsonIgnore

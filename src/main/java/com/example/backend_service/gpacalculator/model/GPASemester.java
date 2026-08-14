@@ -23,7 +23,7 @@ public class GPASemester extends BaseEntity {
     @Column(name = "student_id", nullable = false)
     private Long studentId;
 
-    @OneToMany(mappedBy = "semester", cascade = CascadeType.ALL, fetch = FetchType.LAZY, orphanRemoval = true)
+    @OneToMany(mappedBy = "semester", cascade = CascadeType.ALL, fetch = FetchType.EAGER, orphanRemoval = true)
     private List<GPASubject> subjects = new ArrayList<>();
 
     public GPASemester() {

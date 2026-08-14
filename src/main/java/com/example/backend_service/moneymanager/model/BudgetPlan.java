@@ -6,19 +6,27 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.PositiveOrZero;
 import java.math.BigDecimal;
 
 @Entity
-@Table(name = "money_budgets")
+@Table(name = "money_budgets", uniqueConstraints = {
+        @UniqueConstraint(columnNames = {"student_id", "budget_month"})
+})
 public class BudgetPlan extends BaseEntity {
 
     @com.fasterxml.jackson.annotation.JsonIgnore
     @Column(name = "student_id", nullable = false)
     private Long studentId;
 
+    @PositiveOrZero
     @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal monthlyIncome = BigDecimal.ZERO;
 
+    @PositiveOrZero
     @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal monthlyBudget = BigDecimal.ZERO;
 
@@ -35,6 +43,8 @@ public class BudgetPlan extends BaseEntity {
     @Column(nullable = false, precision = 5, scale = 2)
     private BigDecimal savings = BigDecimal.ZERO;
 
+    @NotBlank
+    @Pattern(regexp = "^\\d{4}-(0[1-9]|1[0-2])$", message = "must be in YYYY-MM format")
     @Column(name = "budget_month", nullable = false, length = 7)
     private String month;
 

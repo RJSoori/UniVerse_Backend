@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -26,11 +27,13 @@ import com.example.backend_service.AzureBlobService;
 import com.example.backend_service.RecruiterStatus;
 import com.example.backend_service.common.exception.UnauthorizedException;
 import com.example.backend_service.jobhub.dto.JobRequest;
+import com.example.backend_service.jobhub.dto.RecruiterAuthResponse;
 import com.example.backend_service.jobhub.enums.JobStatus;
 import com.example.backend_service.jobhub.model.Job;
 import com.example.backend_service.jobhub.model.Recruiter;
 import com.example.backend_service.jobhub.repository.JobRepository;
 import com.example.backend_service.jobhub.repository.RecruiterRepository;
+import com.example.backend_service.jobhub.service.RecruiterJwtService;
 
 @RestController
 @RequestMapping("/api/jobs")
@@ -50,9 +53,14 @@ public class JobHubController {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Autowired
+    private RecruiterJwtService recruiterJwtService;
+
     // Recruiter Endpoints
     @PostMapping("/recruiters/login")
-    public Recruiter loginRecruiter(@RequestParam("email") String email, @RequestParam("password") String password) {
+    public RecruiterAuthResponse loginRecruiter(
+            @RequestParam("email") String email,
+            @RequestParam("password") String password) {
         String normalizedEmail = email.trim().toLowerCase();
         Recruiter recruiter = recruiterRepository.findByEmail(normalizedEmail);
         if (recruiter == null) {
@@ -67,11 +75,12 @@ public class JobHubController {
         if (recruiter.getStatus() != RecruiterStatus.VERIFIED) {
             throw new UnauthorizedException("Account not verified");
         }
-        return recruiter;
+        String token = recruiterJwtService.issue(recruiter.getId());
+        return toAuthResponse(token, recruiter);
     }
 
     @PostMapping("/recruiters")
-    public Recruiter registerRecruiter(
+    public RecruiterAuthResponse registerRecruiter(
             @RequestParam("companyName") String companyName,
             @RequestParam("email") String email,
             @RequestParam("contactPerson") String contactPerson,
@@ -88,7 +97,7 @@ public class JobHubController {
         if (existing != null) {
             throw new UnauthorizedException("Email already registered");
         }
-        
+
         Recruiter recruiter = new Recruiter();
         recruiter.setCompanyName(companyName);
         recruiter.setEmail(normalizedEmail);
@@ -96,31 +105,25 @@ public class JobHubController {
         recruiter.setPassword(passwordEncoder.encode(password));
         recruiter.setAccountType(accountType);
 
-        // Corporate documents
         if (businessRegistration != null && !businessRegistration.isEmpty()) {
-            String url = azureBlobService.uploadFile(businessRegistration);
-            recruiter.setBusinessRegistrationUrl(url);
+            recruiter.setBusinessRegistrationUrl(azureBlobService.uploadFile(businessRegistration));
         }
         if (orgLogo != null && !orgLogo.isEmpty()) {
-            String url = azureBlobService.uploadFile(orgLogo);
-            recruiter.setOrgLogoUrl(url);
+            recruiter.setOrgLogoUrl(azureBlobService.uploadFile(orgLogo));
         }
         if (authLetter != null && !authLetter.isEmpty()) {
-            String url = azureBlobService.uploadFile(authLetter);
-            recruiter.setAuthLetterUrl(url);
+            recruiter.setAuthLetterUrl(azureBlobService.uploadFile(authLetter));
         }
-
-        // Individual documents
         if (profilePicture != null && !profilePicture.isEmpty()) {
-            String url = azureBlobService.uploadFile(profilePicture);
-            recruiter.setProfilePictureUrl(url);
+            recruiter.setProfilePictureUrl(azureBlobService.uploadFile(profilePicture));
         }
         if (idDocument != null && !idDocument.isEmpty()) {
-            String url = azureBlobService.uploadFile(idDocument);
-            recruiter.setIdDocumentUrl(url);
+            recruiter.setIdDocumentUrl(azureBlobService.uploadFile(idDocument));
         }
 
-        return recruiterRepository.save(recruiter);
+        Recruiter saved = recruiterRepository.save(recruiter);
+        // New registrations start as PENDING — no token issued until admin verifies
+        return toAuthResponse(null, saved);
     }
 
     @GetMapping("/recruiters")
@@ -132,15 +135,20 @@ public class JobHubController {
     @PutMapping("/recruiters/{id}/verify")
     @PreAuthorize("hasRole('ADMIN')")
     public Recruiter verifyRecruiter(@PathVariable Long id, @RequestParam String status) {
-        Recruiter recruiter = recruiterRepository.findById(id).orElseThrow(() -> new RuntimeException("Recruiter not found"));
+        Recruiter recruiter = recruiterRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Recruiter not found"));
         recruiter.setStatus(RecruiterStatus.valueOf(status));
         return recruiterRepository.save(recruiter);
     }
 
     // Job Endpoints
     @PostMapping("/post")
-    public Job postJob(@RequestBody JobRequest request) {
-        Recruiter recruiter = recruiterRepository.findById(request.recruiterId())
+    @PreAuthorize("hasRole('RECRUITER')")
+    public Job postJob(
+            @RequestHeader("X-Recruiter-Token") String recruiterToken,
+            @RequestBody JobRequest request) {
+        Long authRecruiterId = recruiterJwtService.parse(recruiterToken);
+        Recruiter recruiter = recruiterRepository.findById(authRecruiterId)
                 .orElseThrow(() -> new RuntimeException("Recruiter not found"));
 
         Job job = new Job();
@@ -153,11 +161,7 @@ public class JobHubController {
         job.setEmploymentType(request.employmentType());
         job.setPostedAt(request.postedAt());
         job.setRecruiter(recruiter);
-        if (recruiter.getStatus() == RecruiterStatus.VERIFIED) {
-            job.setStatus(JobStatus.APPROVED);
-        } else {
-            job.setStatus(JobStatus.PENDING);
-        }
+        job.setStatus(recruiter.getStatus() == RecruiterStatus.VERIFIED ? JobStatus.APPROVED : JobStatus.PENDING);
         return jobRepository.save(job);
     }
 
@@ -172,16 +176,20 @@ public class JobHubController {
     }
 
     @DeleteMapping("/recruiters/{recruiterId}/jobs/{jobId}")
+    @PreAuthorize("hasRole('RECRUITER')")
     @Transactional
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteRecruiterJob(@PathVariable Long recruiterId, @PathVariable Long jobId) {
-        log.info("Delete job request: recruiterId={}, jobId={}", recruiterId, jobId);
-        Job job = jobRepository.findByIdAndRecruiterId(jobId, recruiterId)
+    public void deleteRecruiterJob(
+            @RequestHeader("X-Recruiter-Token") String recruiterToken,
+            @PathVariable Long recruiterId,
+            @PathVariable Long jobId) {
+        Long authRecruiterId = recruiterJwtService.parse(recruiterToken);
+        log.info("Delete job request: authRecruiterId={}, jobId={}", authRecruiterId, jobId);
+        Job job = jobRepository.findByIdAndRecruiterId(jobId, authRecruiterId)
                 .orElseThrow(() -> {
-                    log.error("Job not found: jobId={}, recruiterId={}", jobId, recruiterId);
+                    log.error("Job not found or not owned: jobId={}, recruiterId={}", jobId, authRecruiterId);
                     return new RuntimeException("Job not found or unauthorized deletion attempt");
                 });
-        log.info("Found job: id={}, title={}, recruiter={}", job.getId(), job.getTitle(), job.getRecruiter().getId());
         jobRepository.delete(job);
         jobRepository.flush();
         log.info("Job deleted successfully: id={}", jobId);
@@ -208,5 +216,17 @@ public class JobHubController {
         Job job = jobRepository.findById(id).orElseThrow(() -> new RuntimeException("Job not found"));
         job.setStatus(JobStatus.REJECTED);
         return jobRepository.save(job);
+    }
+
+    private RecruiterAuthResponse toAuthResponse(String token, Recruiter recruiter) {
+        RecruiterAuthResponse response = new RecruiterAuthResponse();
+        response.setToken(token);
+        response.setId(recruiter.getId());
+        response.setCompanyName(recruiter.getCompanyName());
+        response.setEmail(recruiter.getEmail());
+        response.setContactPerson(recruiter.getContactPerson());
+        response.setAccountType(recruiter.getAccountType());
+        response.setStatus(recruiter.getStatus() != null ? recruiter.getStatus().name() : null);
+        return response;
     }
 }

@@ -1,8 +1,11 @@
 package com.example.backend_service.marketplace.model;
 
+import com.example.backend_service.marketplace.enums.SellerStatus;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+
+import java.time.LocalDateTime;
 
 /**
  * Represents a seller account in the marketplace.
@@ -36,7 +39,18 @@ public class Seller {
 
     private String description;
 
+    @Enumerated(EnumType.STRING)
+    private SellerStatus status = SellerStatus.PENDING;
+
+    @Column(nullable = false, updatable = false)
+    private LocalDateTime registeredAt;
+
     public Seller() {}
+
+    @PrePersist
+    private void onCreate() {
+        this.registeredAt = LocalDateTime.now();
+    }
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -52,4 +66,8 @@ public class Seller {
     public void setPhone(String phone) { this.phone = phone; }
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
+    public SellerStatus getStatus() { return status; }
+    public void setStatus(SellerStatus status) { this.status = status; }
+    public LocalDateTime getRegisteredAt() { return registeredAt; }
+    public void setRegisteredAt(LocalDateTime registeredAt) { this.registeredAt = registeredAt; }
 }

@@ -1,6 +1,12 @@
 package com.example.backend_service.gpacalculator.web;
 
 import com.example.backend_service.common.exception.NotFoundException;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.validation.annotation.Validated;
 import com.example.backend_service.gpacalculator.model.GPASemester;
 import com.example.backend_service.gpacalculator.model.GPASettings;
 import com.example.backend_service.gpacalculator.model.GPASubject;
@@ -31,9 +37,12 @@ import java.util.Map;
  * Provides CRUD operations for semesters/subjects and analytics calculations.
  * studentId is always derived from the JWT principal — never from path/request params.
  */
+@Validated
 @RestController
 @RequestMapping("/api/gpa")
 public class GPACalculatorController {
+
+    private static final Logger log = LoggerFactory.getLogger(GPACalculatorController.class);
 
     private final GPACalculatorService gpaCalculatorService;
     private final GPASemesterRepository semesterRepository;
@@ -67,7 +76,7 @@ public class GPACalculatorController {
     @PutMapping("/settings")
     public ResponseEntity<GPASettings> updateSettings(
             @AuthenticationPrincipal Long authStudentId,
-            @RequestBody GPASettings updatedSettings) {
+            @Valid @RequestBody GPASettings updatedSettings) {
         GPASettings settings = gpaCalculatorService.getOrCreateSettings(authStudentId);
         if (settings.getId() == null) {
             settings.setStudentId(authStudentId);
@@ -91,6 +100,7 @@ public class GPACalculatorController {
             settings.setGeneralThreshold(updatedSettings.getGeneralThreshold());
         }
         settings = settingsRepository.save(settings);
+        log.info("student={} updated GPA settings scale={}", authStudentId, settings.getGpaScale());
         return ResponseEntity.ok(settings);
     }
 
@@ -105,6 +115,8 @@ public class GPACalculatorController {
         semester.setId(null); // reject client-supplied id — prevents JPA merge overwrite
         semester.setStudentId(authStudentId);
         GPASemester saved = semesterRepository.save(semester);
+        log.info("student={} created semester id={} year={} sem={}", authStudentId, saved.getId(),
+                saved.getYear(), saved.getSemester());
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
 
@@ -139,6 +151,7 @@ public class GPACalculatorController {
             semester.setSemester(updatedSemester.getSemester());
         }
         semesterRepository.save(semester);
+        log.info("student={} updated semester id={}", authStudentId, semesterId);
         return ResponseEntity.ok(semester);
     }
 
@@ -150,6 +163,7 @@ public class GPACalculatorController {
                 .filter(s -> s.getStudentId().equals(authStudentId))
                 .orElseThrow(NotFoundException::new);
         semesterRepository.deleteById(semesterId);
+        log.info("student={} deleted semester id={}", authStudentId, semesterId);
         return ResponseEntity.noContent().build();
     }
 
@@ -160,8 +174,11 @@ public class GPACalculatorController {
     @PostMapping("/subjects")
     public ResponseEntity<GPASubject> createSubject(
             @AuthenticationPrincipal Long authStudentId,
-            @RequestBody SubjectRequest request) {
-        String semesterId = request.semester() == null ? null : request.semester().id();
+            @Valid @RequestBody SubjectRequest request) {
+        if (request.semester() == null || request.semester().id() == null || request.semester().id().isBlank()) {
+            throw new NotFoundException();
+        }
+        String semesterId = request.semester().id();
         GPASemester semester = semesterRepository.findById(semesterId)
                 .filter(s -> s.getStudentId().equals(authStudentId))
                 .orElseThrow(NotFoundException::new);
@@ -173,6 +190,8 @@ public class GPACalculatorController {
         subject.setStudentId(authStudentId);
         subject.setSemester(semester);
         GPASubject saved = subjectRepository.save(subject);
+        log.info("student={} created subject id={} name={} semesterId={}", authStudentId, saved.getId(),
+                saved.getName(), semesterId);
         return ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
 
@@ -208,6 +227,7 @@ public class GPACalculatorController {
             subject.setIsGpa(updatedSubject.getIsGpa());
         }
         subject = subjectRepository.save(subject);
+        log.info("student={} updated subject id={}", authStudentId, subjectId);
         return ResponseEntity.ok(subject);
     }
 
@@ -219,6 +239,7 @@ public class GPACalculatorController {
                 .filter(s -> s.getSemester().getStudentId().equals(authStudentId))
                 .orElseThrow(NotFoundException::new);
         subjectRepository.deleteById(subjectId);
+        log.info("student={} deleted subject id={}", authStudentId, subjectId);
         return ResponseEntity.noContent().build();
     }
 
@@ -244,16 +265,16 @@ public class GPACalculatorController {
     }
 
     @GetMapping("/analytics/cgpa")
-    public ResponseEntity<Map<String, Double>> calculateCGPA(@AuthenticationPrincipal Long authStudentId) {
+    public ResponseEntity<Map<String, Object>> calculateCGPA(@AuthenticationPrincipal Long authStudentId) {
         GPASettings settings = gpaCalculatorService.getOrCreateSettings(authStudentId);
         if (settings.getId() == null) {
             settings = settingsRepository.save(settings);
         }
         double cgpa = gpaCalculatorService.calculateCGPA(authStudentId, settings);
         String degreeClass = gpaCalculatorService.classifyDegreeClass(cgpa, settings);
-        Map<String, Double> response = new HashMap<>();
+        Map<String, Object> response = new HashMap<>();
         response.put("cgpa", cgpa);
-        response.put("degreeClass", (double) degreeClass.hashCode()); // Placeholder for string
+        response.put("degreeClass", degreeClass);
         return ResponseEntity.ok(response);
     }
 
@@ -291,7 +312,7 @@ public class GPACalculatorController {
     public ResponseEntity<Map<String, Object>> predictDegreeClass(
             @AuthenticationPrincipal Long authStudentId,
             @RequestParam String targetDegreeClass,
-            @RequestParam(defaultValue = "1000") int simulations,
+            @RequestParam(defaultValue = "1000") @Min(1) @Max(10000) int simulations,
             @RequestBody List<Double> nextSemesterSubjects) {
         GPASettings settings = gpaCalculatorService.getOrCreateSettings(authStudentId);
         if (settings.getId() == null) {

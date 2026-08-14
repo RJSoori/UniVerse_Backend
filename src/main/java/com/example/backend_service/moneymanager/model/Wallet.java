@@ -6,22 +6,33 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.PositiveOrZero;
 import java.math.BigDecimal;
 
 @Entity
-@Table(name = "money_wallets")
+@Table(name = "money_wallets", uniqueConstraints = {
+        @UniqueConstraint(columnNames = {"student_id", "name"})
+})
 public class Wallet extends BaseEntity {
 
     @com.fasterxml.jackson.annotation.JsonIgnore
     @Column(name = "student_id", nullable = false)
     private Long studentId;
 
+    @NotBlank
     @Column(nullable = false)
     private String name;
 
+    @NotNull
+    @PositiveOrZero
     @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal balance = BigDecimal.ZERO;
 
+    @Pattern(regexp = "^\\d{4}-\\d{2}-\\d{2}$", message = "must be in YYYY-MM-DD format")
     @Column(nullable = false, length = 10)
     private String createdDate;
 

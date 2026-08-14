@@ -33,6 +33,8 @@ public class Student {
 
     private String degree;
 
+    private String profilePictureUrl;
+
     @NotBlank
     @Email
     private String email;
@@ -73,6 +75,9 @@ public class Student {
 
     public String getDegree() { return degree; }
     public void setDegree(String degree) { this.degree = degree; }
+
+    public String getProfilePictureUrl() { return profilePictureUrl; }
+    public void setProfilePictureUrl(String profilePictureUrl) { this.profilePictureUrl = profilePictureUrl; }
 
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }

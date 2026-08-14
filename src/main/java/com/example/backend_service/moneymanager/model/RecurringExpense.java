@@ -4,6 +4,9 @@ import com.example.backend_service.common.model.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Positive;
 import java.math.BigDecimal;
 
 @Entity
@@ -14,24 +17,30 @@ public class RecurringExpense extends BaseEntity {
     @Column(name = "student_id", nullable = false)
     private Long studentId;
 
+    @NotBlank
     @Column(nullable = false, length = 120)
     private String title;
 
+    @Positive
     @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal amount;
 
+    @NotBlank
     @Column(nullable = false, length = 80)
     private String category;
 
+    @NotBlank
     @Column(nullable = false, length = 36)
     private String walletId;
 
     @Column(nullable = false, length = 16)
     private String frequency = "monthly";
 
+    @Pattern(regexp = "^\\d{4}-\\d{2}-\\d{2}$", message = "must be in YYYY-MM-DD format")
     @Column(nullable = false, length = 10)
     private String startDate;
 
+    @Pattern(regexp = "^\\d{4}-\\d{2}-\\d{2}$", message = "must be in YYYY-MM-DD format")
     @Column(nullable = false, length = 10)
     private String endDate;
 
