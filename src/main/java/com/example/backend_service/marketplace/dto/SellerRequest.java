@@ -28,6 +28,9 @@ public class SellerRequest {
 
     private String description;
 
+    @NotBlank
+    private String emailVerificationToken;
+
     public String getStoreName() { return storeName; }
     public void setStoreName(String storeName) { this.storeName = storeName; }
     public String getEmail() { return email; }
@@ -40,4 +43,6 @@ public class SellerRequest {
     public void setPhone(String phone) { this.phone = phone; }
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
+    public String getEmailVerificationToken() { return emailVerificationToken; }
+    public void setEmailVerificationToken(String emailVerificationToken) { this.emailVerificationToken = emailVerificationToken; }
 }

@@ -27,10 +27,25 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private static final Set<String> LIMITED_PATHS = Set.of(
             "/api/auth/login",
             "/api/auth/register",
+            "/api/auth/forgot-password",
+            "/api/auth/verify-reset-code",
+            "/api/auth/reset-password",
+            "/api/auth/email/send-code",
+            "/api/auth/email/verify-code",
             "/api/marketplace/sellers/login",
             "/api/marketplace/sellers/register",
+            "/api/marketplace/sellers/forgot-password",
+            "/api/marketplace/sellers/verify-reset-code",
+            "/api/marketplace/sellers/reset-password",
+            "/api/marketplace/sellers/email/send-code",
+            "/api/marketplace/sellers/email/verify-code",
             "/api/jobs/recruiters/login",
-            "/api/jobs/recruiters"
+            "/api/jobs/recruiters",
+            "/api/jobs/recruiters/forgot-password",
+            "/api/jobs/recruiters/verify-reset-code",
+            "/api/jobs/recruiters/reset-password",
+            "/api/jobs/recruiters/email/send-code",
+            "/api/jobs/recruiters/email/verify-code"
     );
 
     private final ConcurrentHashMap<String, Deque<Long>> attemptsByKey = new ConcurrentHashMap<>();

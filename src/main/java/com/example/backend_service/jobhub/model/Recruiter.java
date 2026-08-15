@@ -11,6 +11,8 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 
+import java.time.Instant;
+
 @Entity
 public class Recruiter {
     @Id
@@ -34,6 +36,21 @@ public class Recruiter {
 
     @Enumerated(EnumType.STRING)
     private RecruiterStatus status = RecruiterStatus.PENDING;
+
+    // ── Password reset (forgot password flow) ──
+    // Bcrypt hash of the current 6-digit verification code, never stored/returned in plaintext.
+    @JsonIgnore
+    private String resetCodeHash;
+    @JsonIgnore
+    private Instant resetCodeExpiresAt;
+    @JsonIgnore
+    private int resetCodeAttempts = 0;
+    // Bcrypt hash of the short-lived opaque token issued after a code is verified successfully;
+    // required by the final reset-password step so the raw code can't be replayed.
+    @JsonIgnore
+    private String resetTokenHash;
+    @JsonIgnore
+    private Instant resetTokenExpiresAt;
 
     public Recruiter() {}
 
@@ -62,4 +79,14 @@ public class Recruiter {
     public void setAccountType(String accountType) { this.accountType = accountType; }
     public RecruiterStatus getStatus() { return status; }
     public void setStatus(RecruiterStatus status) { this.status = status; }
+    public String getResetCodeHash() { return resetCodeHash; }
+    public void setResetCodeHash(String resetCodeHash) { this.resetCodeHash = resetCodeHash; }
+    public Instant getResetCodeExpiresAt() { return resetCodeExpiresAt; }
+    public void setResetCodeExpiresAt(Instant resetCodeExpiresAt) { this.resetCodeExpiresAt = resetCodeExpiresAt; }
+    public int getResetCodeAttempts() { return resetCodeAttempts; }
+    public void setResetCodeAttempts(int resetCodeAttempts) { this.resetCodeAttempts = resetCodeAttempts; }
+    public String getResetTokenHash() { return resetTokenHash; }
+    public void setResetTokenHash(String resetTokenHash) { this.resetTokenHash = resetTokenHash; }
+    public Instant getResetTokenExpiresAt() { return resetTokenExpiresAt; }
+    public void setResetTokenExpiresAt(Instant resetTokenExpiresAt) { this.resetTokenExpiresAt = resetTokenExpiresAt; }
 }

@@ -28,6 +28,8 @@ import com.example.backend_service.auth.dto.LoginRequest;
 import com.example.backend_service.auth.dto.RegisterRequest;
 import com.example.backend_service.auth.dto.UpdateProfileRequest;
 import com.example.backend_service.auth.dto.UserDto;
+import com.example.backend_service.auth.service.StudentEmailVerificationService;
+import com.example.backend_service.auth.service.StudentPasswordResetService;
 import com.example.backend_service.security.JwtService;
 
 @ExtendWith(MockitoExtension.class)
@@ -45,12 +47,18 @@ class AuthControllerTest {
     @Mock
     private AzureBlobService azureBlobService;
 
+    @Mock
+    private StudentPasswordResetService studentPasswordResetService;
+
+    @Mock
+    private StudentEmailVerificationService studentEmailVerificationService;
+
     @InjectMocks
     private AuthController controller;
 
     @Test
     void register_createsStudentAndReturnsToken() {
-        RegisterRequest request = new RegisterRequest("Nina", "CS", "nina@example.com", "nina", "secret12");
+        RegisterRequest request = new RegisterRequest("Nina", "CS", "nina@example.com", "nina", "secret12", "verify-token");
         Student saved = new Student();
         saved.setId(7L);
         saved.setName("Nina");

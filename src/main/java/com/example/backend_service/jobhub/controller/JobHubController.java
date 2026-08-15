@@ -26,14 +26,24 @@ import org.springframework.web.multipart.MultipartFile;
 import com.example.backend_service.AzureBlobService;
 import com.example.backend_service.RecruiterStatus;
 import com.example.backend_service.common.exception.UnauthorizedException;
+import com.example.backend_service.common.dto.ForgotPasswordRequest;
 import com.example.backend_service.jobhub.dto.JobRequest;
 import com.example.backend_service.jobhub.dto.RecruiterAuthResponse;
+import com.example.backend_service.common.dto.ResetPasswordRequest;
+import com.example.backend_service.common.dto.SendEmailVerificationRequest;
+import com.example.backend_service.common.dto.VerifyEmailRequest;
+import com.example.backend_service.common.dto.VerifyEmailResponse;
+import com.example.backend_service.common.dto.VerifyResetCodeRequest;
+import com.example.backend_service.common.dto.VerifyResetCodeResponse;
 import com.example.backend_service.jobhub.enums.JobStatus;
 import com.example.backend_service.jobhub.model.Job;
 import com.example.backend_service.jobhub.model.Recruiter;
 import com.example.backend_service.jobhub.repository.JobRepository;
 import com.example.backend_service.jobhub.repository.RecruiterRepository;
+import com.example.backend_service.jobhub.service.RecruiterEmailVerificationService;
 import com.example.backend_service.jobhub.service.RecruiterJwtService;
+import com.example.backend_service.jobhub.service.RecruiterPasswordResetService;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/jobs")
@@ -55,6 +65,12 @@ public class JobHubController {
 
     @Autowired
     private RecruiterJwtService recruiterJwtService;
+
+    @Autowired
+    private RecruiterPasswordResetService recruiterPasswordResetService;
+
+    @Autowired
+    private RecruiterEmailVerificationService recruiterEmailVerificationService;
 
     // Recruiter Endpoints
     @PostMapping("/recruiters/login")
@@ -79,6 +95,18 @@ public class JobHubController {
         return toAuthResponse(token, recruiter);
     }
 
+    @PostMapping("/recruiters/email/send-code")
+    public Map<String, String> sendRegistrationEmailCode(@RequestBody SendEmailVerificationRequest request) {
+        recruiterEmailVerificationService.sendCode(request.email());
+        return Map.of("message", "Verification code sent.");
+    }
+
+    @PostMapping("/recruiters/email/verify-code")
+    public VerifyEmailResponse verifyRegistrationEmailCode(@RequestBody VerifyEmailRequest request) {
+        String token = recruiterEmailVerificationService.verifyCode(request.email(), request.code());
+        return new VerifyEmailResponse(token);
+    }
+
     @PostMapping("/recruiters")
     public RecruiterAuthResponse registerRecruiter(
             @RequestParam("companyName") String companyName,
@@ -86,6 +114,7 @@ public class JobHubController {
             @RequestParam("contactPerson") String contactPerson,
             @RequestParam("password") String password,
             @RequestParam(value = "accountType", defaultValue = "company") String accountType,
+            @RequestParam("emailVerificationToken") String emailVerificationToken,
             @RequestParam(value = "businessRegistration", required = false) MultipartFile businessRegistration,
             @RequestParam(value = "orgLogo", required = false) MultipartFile orgLogo,
             @RequestParam(value = "authLetter", required = false) MultipartFile authLetter,
@@ -97,6 +126,9 @@ public class JobHubController {
         if (existing != null) {
             throw new UnauthorizedException("Email already registered");
         }
+        // Registration is only allowed once the email has been verified via the
+        // send-code/verify-code pair above; this consumes (and single-uses) that token.
+        recruiterEmailVerificationService.consumeVerification(normalizedEmail, emailVerificationToken);
 
         Recruiter recruiter = new Recruiter();
         recruiter.setCompanyName(companyName);
@@ -124,6 +156,26 @@ public class JobHubController {
         Recruiter saved = recruiterRepository.save(recruiter);
         // New registrations start as PENDING — no token issued until admin verifies
         return toAuthResponse(null, saved);
+    }
+
+    @PostMapping("/recruiters/forgot-password")
+    public Map<String, String> forgotPassword(@RequestBody ForgotPasswordRequest request) {
+        recruiterPasswordResetService.requestReset(request.email());
+        // Always the same response, whether or not the email matched an account, so we don't
+        // leak which addresses are registered.
+        return Map.of("message", "If that email is registered, we've sent a verification code to it.");
+    }
+
+    @PostMapping("/recruiters/verify-reset-code")
+    public VerifyResetCodeResponse verifyResetCode(@RequestBody VerifyResetCodeRequest request) {
+        String resetToken = recruiterPasswordResetService.verifyCode(request.email(), request.code());
+        return new VerifyResetCodeResponse(resetToken);
+    }
+
+    @PostMapping("/recruiters/reset-password")
+    public Map<String, String> resetPassword(@RequestBody ResetPasswordRequest request) {
+        recruiterPasswordResetService.resetPassword(request.email(), request.resetToken(), request.newPassword());
+        return Map.of("message", "Password updated successfully. You can now log in.");
     }
 
     @GetMapping("/recruiters")
