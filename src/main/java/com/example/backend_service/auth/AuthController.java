@@ -9,6 +9,15 @@ import com.example.backend_service.auth.dto.LoginRequest;
 import com.example.backend_service.auth.dto.RegisterRequest;
 import com.example.backend_service.auth.dto.UpdateProfileRequest;
 import com.example.backend_service.auth.dto.UserDto;
+import com.example.backend_service.auth.service.StudentEmailVerificationService;
+import com.example.backend_service.auth.service.StudentPasswordResetService;
+import com.example.backend_service.common.dto.ForgotPasswordRequest;
+import com.example.backend_service.common.dto.ResetPasswordRequest;
+import com.example.backend_service.common.dto.SendEmailVerificationRequest;
+import com.example.backend_service.common.dto.VerifyEmailRequest;
+import com.example.backend_service.common.dto.VerifyEmailResponse;
+import com.example.backend_service.common.dto.VerifyResetCodeRequest;
+import com.example.backend_service.common.dto.VerifyResetCodeResponse;
 import com.example.backend_service.common.exception.ConflictException;
 import com.example.backend_service.common.exception.NotFoundException;
 import com.example.backend_service.security.JwtService;
@@ -41,15 +50,21 @@ public class AuthController {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AzureBlobService azureBlobService;
+    private final StudentPasswordResetService studentPasswordResetService;
+    private final StudentEmailVerificationService studentEmailVerificationService;
 
     public AuthController(StudentRepository studentRepository,
                           PasswordEncoder passwordEncoder,
                           JwtService jwtService,
-                          AzureBlobService azureBlobService) {
+                          AzureBlobService azureBlobService,
+                          StudentPasswordResetService studentPasswordResetService,
+                          StudentEmailVerificationService studentEmailVerificationService) {
         this.studentRepository = studentRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.azureBlobService = azureBlobService;
+        this.studentPasswordResetService = studentPasswordResetService;
+        this.studentEmailVerificationService = studentEmailVerificationService;
     }
 
     private void setAuthCookie(HttpServletResponse response, String token) {
@@ -74,6 +89,38 @@ public class AuthController {
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
     }
 
+    @PostMapping("/forgot-password")
+    public Map<String, String> forgotPassword(@RequestBody ForgotPasswordRequest request) {
+        studentPasswordResetService.requestReset(request.email());
+        // Always the same response, whether or not the email matched an account, so we don't
+        // leak which addresses are registered.
+        return Map.of("message", "If that email is registered, we've sent a verification code to it.");
+    }
+
+    @PostMapping("/verify-reset-code")
+    public VerifyResetCodeResponse verifyResetCode(@RequestBody VerifyResetCodeRequest request) {
+        String resetToken = studentPasswordResetService.verifyCode(request.email(), request.code());
+        return new VerifyResetCodeResponse(resetToken);
+    }
+
+    @PostMapping("/reset-password")
+    public Map<String, String> resetPassword(@RequestBody ResetPasswordRequest request) {
+        studentPasswordResetService.resetPassword(request.email(), request.resetToken(), request.newPassword());
+        return Map.of("message", "Password updated successfully. You can now log in.");
+    }
+
+    @PostMapping("/email/send-code")
+    public Map<String, String> sendEmailVerificationCode(@RequestBody SendEmailVerificationRequest request) {
+        studentEmailVerificationService.sendCode(request.email());
+        return Map.of("message", "Verification code sent.");
+    }
+
+    @PostMapping("/email/verify-code")
+    public VerifyEmailResponse verifyEmailCode(@RequestBody VerifyEmailRequest request) {
+        String token = studentEmailVerificationService.verifyCode(request.email(), request.code());
+        return new VerifyEmailResponse(token);
+    }
+
     @PostMapping("/register")
     public ResponseEntity<AuthResponse> register(@Valid @RequestBody RegisterRequest req,
                                                   HttpServletResponse response) {
@@ -83,6 +130,9 @@ public class AuthController {
         if (studentRepository.existsByEmail(req.email())) {
             throw new ConflictException("Email already registered");
         }
+        // Registration is only allowed once the email has been verified via the
+        // send-code/verify-code pair above; this consumes (and single-uses) that token.
+        studentEmailVerificationService.consumeVerification(req.email(), req.emailVerificationToken());
         Student s = new Student();
         s.setName(req.name());
         s.setDegree(req.degree());

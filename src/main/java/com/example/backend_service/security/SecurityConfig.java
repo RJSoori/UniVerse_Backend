@@ -47,13 +47,32 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         // Student auth
                         .requestMatchers("/api/auth/register", "/api/auth/login").permitAll()
+                        // Student forgot-password / signup email verification
+                        .requestMatchers(HttpMethod.POST, "/api/auth/forgot-password").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/verify-reset-code").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/reset-password").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/email/send-code").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/email/verify-code").permitAll()
                         // Seller auth (marketplace)
                         .requestMatchers("/api/marketplace/sellers/register", "/api/marketplace/sellers/login").permitAll()
+                        // Seller forgot-password / signup email verification
+                        .requestMatchers(HttpMethod.POST, "/api/marketplace/sellers/forgot-password").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/marketplace/sellers/verify-reset-code").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/marketplace/sellers/reset-password").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/marketplace/sellers/email/send-code").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/marketplace/sellers/email/verify-code").permitAll()
                         // Public job browsing
                         .requestMatchers(HttpMethod.GET, "/api/jobs/all").permitAll()
                         // Recruiter registration and login
                         .requestMatchers(HttpMethod.POST, "/api/jobs/recruiters").permitAll()
                         .requestMatchers("/api/jobs/recruiters/login").permitAll()
+                        // Recruiter forgot-password flow
+                        .requestMatchers(HttpMethod.POST, "/api/jobs/recruiters/forgot-password").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/jobs/recruiters/verify-reset-code").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/jobs/recruiters/reset-password").permitAll()
+                        // Recruiter signup email verification
+                        .requestMatchers(HttpMethod.POST, "/api/jobs/recruiters/email/send-code").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/jobs/recruiters/email/verify-code").permitAll()
                         // GPA health check
                         .requestMatchers("/api/gpa/health").permitAll()
                         .requestMatchers("/error").permitAll()

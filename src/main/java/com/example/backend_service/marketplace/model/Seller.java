@@ -1,10 +1,12 @@
 package com.example.backend_service.marketplace.model;
 
 import com.example.backend_service.marketplace.enums.SellerStatus;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 
 /**
@@ -45,6 +47,18 @@ public class Seller {
     @Column(nullable = false, updatable = false)
     private LocalDateTime registeredAt;
 
+    // ── Password reset (forgot password flow) ──
+    @JsonIgnore
+    private String resetCodeHash;
+    @JsonIgnore
+    private Instant resetCodeExpiresAt;
+    @JsonIgnore
+    private int resetCodeAttempts = 0;
+    @JsonIgnore
+    private String resetTokenHash;
+    @JsonIgnore
+    private Instant resetTokenExpiresAt;
+
     public Seller() {}
 
     @PrePersist
@@ -70,4 +84,14 @@ public class Seller {
     public void setStatus(SellerStatus status) { this.status = status; }
     public LocalDateTime getRegisteredAt() { return registeredAt; }
     public void setRegisteredAt(LocalDateTime registeredAt) { this.registeredAt = registeredAt; }
+    public String getResetCodeHash() { return resetCodeHash; }
+    public void setResetCodeHash(String resetCodeHash) { this.resetCodeHash = resetCodeHash; }
+    public Instant getResetCodeExpiresAt() { return resetCodeExpiresAt; }
+    public void setResetCodeExpiresAt(Instant resetCodeExpiresAt) { this.resetCodeExpiresAt = resetCodeExpiresAt; }
+    public int getResetCodeAttempts() { return resetCodeAttempts; }
+    public void setResetCodeAttempts(int resetCodeAttempts) { this.resetCodeAttempts = resetCodeAttempts; }
+    public String getResetTokenHash() { return resetTokenHash; }
+    public void setResetTokenHash(String resetTokenHash) { this.resetTokenHash = resetTokenHash; }
+    public Instant getResetTokenExpiresAt() { return resetTokenExpiresAt; }
+    public void setResetTokenExpiresAt(Instant resetTokenExpiresAt) { this.resetTokenExpiresAt = resetTokenExpiresAt; }
 }

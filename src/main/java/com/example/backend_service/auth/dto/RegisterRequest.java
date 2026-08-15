@@ -9,5 +9,6 @@ public record RegisterRequest(
         String degree,
         @NotBlank @Email String email,
         @NotBlank @Size(min = 3, max = 50) String username,
-        @NotBlank @Size(min = 6, max = 100) String password) {
+        @NotBlank @Size(min = 6, max = 100) String password,
+        @NotBlank String emailVerificationToken) {
 }

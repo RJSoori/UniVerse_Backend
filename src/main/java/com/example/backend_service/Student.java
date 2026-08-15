@@ -57,6 +57,18 @@ public class Student {
      */
     private LocalDateTime createdAt;
 
+    // ── Password reset (forgot password flow) ──
+    @JsonIgnore
+    private String resetCodeHash;
+    @JsonIgnore
+    private java.time.Instant resetCodeExpiresAt;
+    @JsonIgnore
+    private int resetCodeAttempts = 0;
+    @JsonIgnore
+    private String resetTokenHash;
+    @JsonIgnore
+    private java.time.Instant resetTokenExpiresAt;
+
     public Student() {}
 
     public Student(String name, String degree, String email, String username, String password) {
@@ -93,6 +105,17 @@ public class Student {
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+
+    public String getResetCodeHash() { return resetCodeHash; }
+    public void setResetCodeHash(String resetCodeHash) { this.resetCodeHash = resetCodeHash; }
+    public java.time.Instant getResetCodeExpiresAt() { return resetCodeExpiresAt; }
+    public void setResetCodeExpiresAt(java.time.Instant resetCodeExpiresAt) { this.resetCodeExpiresAt = resetCodeExpiresAt; }
+    public int getResetCodeAttempts() { return resetCodeAttempts; }
+    public void setResetCodeAttempts(int resetCodeAttempts) { this.resetCodeAttempts = resetCodeAttempts; }
+    public String getResetTokenHash() { return resetTokenHash; }
+    public void setResetTokenHash(String resetTokenHash) { this.resetTokenHash = resetTokenHash; }
+    public java.time.Instant getResetTokenExpiresAt() { return resetTokenExpiresAt; }
+    public void setResetTokenExpiresAt(java.time.Instant resetTokenExpiresAt) { this.resetTokenExpiresAt = resetTokenExpiresAt; }
 
     @PrePersist
     protected void onCreate() {
