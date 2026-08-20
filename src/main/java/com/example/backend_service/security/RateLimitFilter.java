@@ -21,7 +21,11 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class RateLimitFilter extends OncePerRequestFilter {
 
-    private static final int MAX_ATTEMPTS = 5;
+    // Keyed by IP+path (not account) - deliberately so, since scoping by account would let an
+    // attacker spread guesses across many target emails from one IP to dodge the limit. Raised
+    // from 5 to 20: still far too slow to make password brute-forcing practical, but no longer
+    // trips over normal multi-account developer testing from a single machine.
+    private static final int MAX_ATTEMPTS = 20;
     private static final long WINDOW_MILLIS = 15 * 60 * 1000L;
 
     private static final Set<String> LIMITED_PATHS = Set.of(

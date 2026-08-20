@@ -2,7 +2,6 @@ package com.example.backend_service.skills;
 
 import com.example.backend_service.AzureBlobService;
 import com.example.backend_service.common.exception.BadRequestException;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -143,20 +142,11 @@ public class SkillsController {
     }
 
     private List<String> readSkills(StudentSkillProfile profile) {
-        try {
-            return objectMapper.readValue(profile.getSkillsJson(), new TypeReference<List<String>>() {
-            });
-        } catch (Exception e) {
-            return List.of();
-        }
+        return SkillsJsonUtil.readSkills(objectMapper, profile.getSkillsJson());
     }
 
     private void writeSkills(StudentSkillProfile profile, List<String> skills) {
-        try {
-            profile.setSkillsJson(objectMapper.writeValueAsString(skills));
-        } catch (Exception e) {
-            profile.setSkillsJson("[]");
-        }
+        profile.setSkillsJson(SkillsJsonUtil.writeSkills(objectMapper, skills));
     }
 
     private Map<String, Object> toResponse(StudentSkillProfile profile) {

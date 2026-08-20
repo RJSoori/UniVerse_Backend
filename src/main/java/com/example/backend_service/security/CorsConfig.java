@@ -29,7 +29,7 @@ public class CorsConfig {
                 "https://localhost:*",
                 "https://127.0.0.1:*"
         ));
-        cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         cfg.setAllowedHeaders(List.of("*") );
         cfg.setAllowCredentials(true);
         cfg.setMaxAge(3600L);

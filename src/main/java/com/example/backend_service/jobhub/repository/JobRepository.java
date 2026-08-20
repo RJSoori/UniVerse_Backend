@@ -12,6 +12,8 @@ import com.example.backend_service.jobhub.model.Job;
 @Repository
 public interface JobRepository extends JpaRepository<Job, Long> {
     List<Job> findByStatus(JobStatus status);
+    List<Job> findByStatusAndActive(JobStatus status, boolean active);
     List<Job> findByRecruiterId(Long recruiterId);
+    List<Job> findByRecruiterIdAndDeletedFalse(Long recruiterId);
     Optional<Job> findByIdAndRecruiterId(Long jobId, Long recruiterId);
 }
