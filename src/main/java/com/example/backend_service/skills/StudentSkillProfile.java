@@ -33,6 +33,14 @@ public class StudentSkillProfile {
 
     private Instant cvUploadedAt;
 
+    /**
+     * Null until the student explicitly accepts the notice that their CV is sent to Google's
+     * Gemini API for skill extraction. Uploads are hard-blocked server-side until this is set -
+     * see SkillsController#uploadCv - so the consent can never be skipped by calling the API
+     * directly, and once accepted it's never asked for again.
+     */
+    private Instant cvPrivacyPolicyAcceptedAt;
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
     public Long getStudentId() { return studentId; }
@@ -43,4 +51,6 @@ public class StudentSkillProfile {
     public void setCvUrl(String cvUrl) { this.cvUrl = cvUrl; }
     public Instant getCvUploadedAt() { return cvUploadedAt; }
     public void setCvUploadedAt(Instant cvUploadedAt) { this.cvUploadedAt = cvUploadedAt; }
+    public Instant getCvPrivacyPolicyAcceptedAt() { return cvPrivacyPolicyAcceptedAt; }
+    public void setCvPrivacyPolicyAcceptedAt(Instant cvPrivacyPolicyAcceptedAt) { this.cvPrivacyPolicyAcceptedAt = cvPrivacyPolicyAcceptedAt; }
 }

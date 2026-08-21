@@ -111,7 +111,7 @@ class SkillMatchServiceTest {
         when(profileRepository.findByStudentId(42L)).thenReturn(Optional.empty());
 
         assertThat(service.computeSuggestedSkills(42L))
-                .containsExactly(new SuggestedSkill("Java", 1));
+                .containsExactly(new SuggestedSkill(List.of("Java"), 1));
     }
 
     @Test
@@ -142,7 +142,7 @@ class SkillMatchServiceTest {
         when(profileRepository.findByStudentId(42L)).thenReturn(Optional.empty());
 
         assertThat(service.computeSuggestedSkills(42L))
-                .extracting(SuggestedSkill::skill)
+                .extracting(s -> s.skills().get(0))
                 .containsExactly("Docker", "SQL");
     }
 
@@ -153,7 +153,48 @@ class SkillMatchServiceTest {
         when(profileRepository.findByStudentId(42L)).thenReturn(Optional.empty());
 
         assertThat(service.computeSuggestedSkills(42L))
-                .containsExactly(new SuggestedSkill("SQL", 2));
+                .containsExactly(new SuggestedSkill(List.of("SQL"), 2));
+    }
+
+    // ---- computeSuggestedSkills: pair suggestions ----
+
+    @Test
+    void computeSuggestedSkills_jobNeedingTwoMoreSkills_suggestsPairWhenNoSingleSkillReachesThreshold() {
+        when(jobRepository.findByStatus(JobStatus.APPROVED))
+                .thenReturn(List.of(job(1L, "Java, SQL, React, Docker")));
+        when(profileRepository.findByStudentId(42L))
+                .thenReturn(Optional.of(profileWithSkills(42L, "Java", "SQL")));
+
+        // 2/4 = 50% currently. Adding either missing skill alone only reaches 3/4 = 75%
+        // (< 80%) - no single-skill suggestion. Adding both reaches 4/4 = 100% - suggest the pair.
+        assertThat(service.computeSuggestedSkills(42L))
+                .containsExactly(new SuggestedSkill(List.of("Docker", "React"), 1));
+    }
+
+    @Test
+    void computeSuggestedSkills_jobUnlockableBySingleSkill_excludedFromPairPass() {
+        when(jobRepository.findByStatus(JobStatus.APPROVED))
+                .thenReturn(List.of(job(1L, "Java, SQL, React, Docker, AWS")));
+        when(profileRepository.findByStudentId(42L))
+                .thenReturn(Optional.of(profileWithSkills(42L, "Java", "SQL", "React")));
+
+        // 3/5 = 60%. Either missing skill alone reaches 4/5 = 80% - both "AWS" and "Docker" are
+        // valid single-skill suggestions, and no "AWS+Docker" pair suggestion should also appear
+        // for the same job - one skill alone is already enough, so a pair ask would be misleading.
+        assertThat(service.computeSuggestedSkills(42L))
+                .containsExactlyInAnyOrder(
+                        new SuggestedSkill(List.of("AWS"), 1),
+                        new SuggestedSkill(List.of("Docker"), 1));
+    }
+
+    @Test
+    void computeSuggestedSkills_pairStillTooFewSkillsEvenTogether_notSuggested() {
+        when(jobRepository.findByStatus(JobStatus.APPROVED))
+                .thenReturn(List.of(job(1L, "Java, SQL, React, Docker, AWS")));
+        when(profileRepository.findByStudentId(42L)).thenReturn(Optional.empty());
+
+        // 0/5 = 0%. Even the best pair only reaches 2/5 = 40% - nothing to suggest, single or pair.
+        assertThat(service.computeSuggestedSkills(42L)).isEmpty();
     }
 
     @Test

@@ -8,10 +8,13 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Stream;
 
 /**
  * Computes "UniVerse Skill Matcher" percentages between a student's skill set
@@ -54,45 +57,84 @@ public class SkillMatchService {
     }
 
     /**
-     * The top skills the student doesn't have, ranked by how many jobs currently scoring below
-     * {@link #SUITABLE_THRESHOLD} would cross it if the student picked up that one skill.
-     * A job needing several new skills at once never shows up under any single skill here -
-     * that's expected: this ranks individual skills' marginal impact, not skill combinations.
+     * The top skills (or, where needed, skill pairs) the student doesn't have, ranked by how
+     * many jobs currently scoring below {@link #SUITABLE_THRESHOLD} would cross it. Two passes:
+     * first, every job that a single missing skill alone would unlock (as before); second -
+     * only for jobs that NO single skill could unlock on its own - every pair of missing skills
+     * that would unlock it *together*, since recommending either skill alone there would be
+     * misleading (neither one, by itself, gets the student to a suitable match).
      */
     public List<SuggestedSkill> computeSuggestedSkills(Long studentId) {
         List<String> studentSkills = loadStudentSkills(studentId);
 
+        List<JobTokens> belowThreshold = eligibleJobs().stream()
+                .filter(job -> percentage(countMatched(job.tokens(), studentSkills), job.tokens().size()) < SUITABLE_THRESHOLD)
+                .toList();
+
+        // ---- Pass 1: single skills ----
         // Tally keyed case-insensitively so "SQL" (job A) and "Sql" (job B) accumulate together;
         // the first casing seen is kept for display.
-        Map<String, Integer> tally = new LinkedHashMap<>();
-        Map<String, String> displayName = new LinkedHashMap<>();
+        Map<String, Integer> singleTally = new LinkedHashMap<>();
+        Map<String, String> singleDisplay = new LinkedHashMap<>();
+        Set<Long> singleUnlockableJobIds = new HashSet<>();
 
-        for (JobTokens job : eligibleJobs()) {
+        for (JobTokens job : belowThreshold) {
             int matched = countMatched(job.tokens(), studentSkills);
-            int currentScore = percentage(matched, job.tokens().size());
-            if (currentScore >= SUITABLE_THRESHOLD) {
-                continue; // already suitable - not a candidate to "unlock"
-            }
-            for (String token : job.tokens()) {
-                boolean studentAlreadyHasIt =
-                        studentSkills.stream().anyMatch(s -> s.equalsIgnoreCase(token));
-                if (studentAlreadyHasIt) {
-                    continue;
-                }
+            for (String token : missingTokens(job.tokens(), studentSkills)) {
                 int simulatedScore = percentage(matched + 1, job.tokens().size());
                 if (simulatedScore >= SUITABLE_THRESHOLD) {
                     String key = token.toLowerCase(Locale.ROOT);
-                    tally.merge(key, 1, Integer::sum);
-                    displayName.putIfAbsent(key, token);
+                    singleTally.merge(key, 1, Integer::sum);
+                    singleDisplay.putIfAbsent(key, token);
+                    singleUnlockableJobIds.add(job.jobId());
                 }
             }
         }
 
-        return tally.entrySet().stream()
-                .map(e -> new SuggestedSkill(displayName.get(e.getKey()), e.getValue()))
+        // ---- Pass 2: pairs, only for jobs no single skill could unlock ----
+        Map<String, Integer> pairTally = new LinkedHashMap<>();
+        Map<String, List<String>> pairDisplay = new LinkedHashMap<>();
+
+        for (JobTokens job : belowThreshold) {
+            if (singleUnlockableJobIds.contains(job.jobId())) {
+                continue;
+            }
+            int matched = countMatched(job.tokens(), studentSkills);
+            List<String> missing = missingTokens(job.tokens(), studentSkills);
+            for (int i = 0; i < missing.size(); i++) {
+                for (int j = i + 1; j < missing.size(); j++) {
+                    int simulatedScore = percentage(matched + 2, job.tokens().size());
+                    if (simulatedScore >= SUITABLE_THRESHOLD) {
+                        List<String> pair = Stream.of(missing.get(i), missing.get(j))
+                                .sorted(String.CASE_INSENSITIVE_ORDER)
+                                .toList();
+                        String key = pair.get(0).toLowerCase(Locale.ROOT) + "+" + pair.get(1).toLowerCase(Locale.ROOT);
+                        pairTally.merge(key, 1, Integer::sum);
+                        pairDisplay.putIfAbsent(key, pair);
+                    }
+                }
+            }
+        }
+
+        Stream<SuggestedSkill> singleSuggestions = singleTally.entrySet().stream()
+                .map(e -> new SuggestedSkill(List.of(singleDisplay.get(e.getKey())), e.getValue()));
+        Stream<SuggestedSkill> pairSuggestions = pairTally.entrySet().stream()
+                .map(e -> new SuggestedSkill(pairDisplay.get(e.getKey()), e.getValue()));
+
+        return Stream.concat(singleSuggestions, pairSuggestions)
+                // Ranked by impact first; ties prefer the simpler (single-skill) ask, then
+                // alphabetically so repeated calls are stable.
                 .sorted(Comparator.comparingInt(SuggestedSkill::jobsUnlocked).reversed()
-                        .thenComparing(s -> s.skill().toLowerCase(Locale.ROOT)))
+                        .thenComparingInt(s -> s.skills().size())
+                        .thenComparing(s -> String.join("+", s.skills()).toLowerCase(Locale.ROOT)))
                 .limit(MAX_SUGGESTED_SKILLS)
+                .toList();
+    }
+
+    /** Tokens from a job's skill list the student doesn't already have (case-insensitive). */
+    private static List<String> missingTokens(List<String> jobTokens, List<String> studentSkills) {
+        return jobTokens.stream()
+                .filter(token -> studentSkills.stream().noneMatch(s -> s.equalsIgnoreCase(token)))
                 .toList();
     }
 

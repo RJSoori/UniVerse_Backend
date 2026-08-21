@@ -1,6 +1,7 @@
 package com.example.backend_service.jobhub.controller;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 
@@ -9,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -26,11 +28,15 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.example.backend_service.AzureBlobService;
 import com.example.backend_service.RecruiterStatus;
+import com.example.backend_service.common.exception.BadRequestException;
 import com.example.backend_service.common.exception.ForbiddenException;
+import com.example.backend_service.common.exception.NotFoundException;
 import com.example.backend_service.common.exception.UnauthorizedException;
 import com.example.backend_service.common.dto.ForgotPasswordRequest;
 import com.example.backend_service.jobhub.dto.JobRequest;
+import com.example.backend_service.jobhub.dto.JobReportRequest;
 import com.example.backend_service.jobhub.dto.JobUpdateRequest;
+import com.example.backend_service.jobhub.dto.MarketTrendEntry;
 import com.example.backend_service.jobhub.dto.RecruiterAuthResponse;
 import com.example.backend_service.jobhub.dto.RecruiterProfileResponse;
 import com.example.backend_service.common.dto.ResetPasswordRequest;
@@ -41,9 +47,12 @@ import com.example.backend_service.common.dto.VerifyResetCodeRequest;
 import com.example.backend_service.common.dto.VerifyResetCodeResponse;
 import com.example.backend_service.jobhub.enums.JobStatus;
 import com.example.backend_service.jobhub.model.Job;
+import com.example.backend_service.jobhub.model.JobReport;
 import com.example.backend_service.jobhub.model.Recruiter;
+import com.example.backend_service.jobhub.repository.JobReportRepository;
 import com.example.backend_service.jobhub.repository.JobRepository;
 import com.example.backend_service.jobhub.repository.RecruiterRepository;
+import com.example.backend_service.jobhub.service.MarketTrendService;
 import com.example.backend_service.jobhub.service.RecruiterEmailVerificationService;
 import com.example.backend_service.jobhub.service.RecruiterJwtService;
 import com.example.backend_service.jobhub.service.RecruiterPasswordResetService;
@@ -57,6 +66,12 @@ public class JobHubController {
 
     @Autowired
     private JobRepository jobRepository;
+
+    @Autowired
+    private JobReportRepository jobReportRepository;
+
+    @Autowired
+    private MarketTrendService marketTrendService;
 
     @Autowired
     private RecruiterRepository recruiterRepository;
@@ -298,12 +313,26 @@ public class JobHubController {
         job.setPostedAt(request.postedAt());
         job.setRecruiter(recruiter);
         job.setStatus(JobStatus.APPROVED);
+        job.setCreatedAt(Instant.now());
         return jobRepository.save(job);
     }
 
     @GetMapping("/all")
     public List<Job> getAllJobs() {
-        return jobRepository.findByStatusAndActive(JobStatus.APPROVED, true);
+        return jobRepository.findByStatusAndActiveOrderByCreatedAtDescIdDesc(JobStatus.APPROVED, true);
+    }
+
+    /**
+     * Market Trend: the top 3 job titles by posting volume over the trailing 3 calendar
+     * months, across all recruiters - a simple proxy for "which roles are in the highest
+     * demand right now" (there's no application-tracking system to measure real applicant
+     * demand against, so posting volume is the closest real signal available). See
+     * {@link MarketTrendService} for the actual computation, including Gemini-based clustering
+     * of differently-worded titles for the same role and result caching.
+     */
+    @GetMapping("/market-trend")
+    public List<MarketTrendEntry> getMarketTrend() {
+        return marketTrendService.getTrend();
     }
 
     @GetMapping("/recruiters/{id}/jobs")
@@ -351,10 +380,50 @@ public class JobHubController {
                     log.error("Job not found or not owned: jobId={}, recruiterId={}", jobId, authRecruiterId);
                     return new RuntimeException("Job not found or unauthorized action");
                 });
+        // A reported posting can't be silently reactivated by its own recruiter - it stays
+        // hidden until an admin dismisses the report (or permanently, if the admin blocks it).
+        if (active && job.isBlocked()) {
+            throw new ForbiddenException("This posting has been blocked by an admin and can no longer be activated.");
+        }
+        if (active && job.isUnderReview()) {
+            throw new ForbiddenException("This posting is under investigation and can't be reactivated until an admin reviews it.");
+        }
         job.setActive(active);
         Job saved = jobRepository.save(job);
         log.info("Job active flag updated: id={}, active={}", jobId, active);
         return saved;
+    }
+
+    @PostMapping("/{jobId}/report")
+    public Map<String, String> reportJob(
+            @AuthenticationPrincipal Long authStudentId,
+            @PathVariable Long jobId,
+            @RequestBody JobReportRequest request) {
+        if (request.reason() == null || request.reason().isBlank()) {
+            throw new BadRequestException("Please tell us why you're reporting this posting.");
+        }
+        Job job = jobRepository.findById(jobId)
+                .orElseThrow(() -> new NotFoundException("Job not found"));
+
+        if (jobReportRepository.existsByJobIdAndReportedByStudentIdAndResolvedFalse(jobId, authStudentId)) {
+            return Map.of("message", "You've already reported this posting - our team is reviewing it.");
+        }
+
+        JobReport report = new JobReport();
+        report.setJob(job);
+        report.setReportedByStudentId(authStudentId);
+        report.setReason(request.reason());
+        report.setReportedAt(Instant.now());
+        jobReportRepository.save(report);
+
+        // A report immediately hides the posting from student browsing and flags it for the
+        // recruiter as under investigation - blocking/dismissing is left entirely to the admin.
+        job.setUnderReview(true);
+        job.setActive(false);
+        jobRepository.save(job);
+
+        log.info("Job reported: jobId={}, reportedByStudentId={}", jobId, authStudentId);
+        return Map.of("message", "Report submitted. Thanks for helping keep UniVerse Job Hub safe.");
     }
 
     @DeleteMapping("/recruiters/{recruiterId}/jobs/{jobId}")
@@ -401,6 +470,43 @@ public class JobHubController {
         Job job = jobRepository.findById(id).orElseThrow(() -> new RuntimeException("Job not found"));
         job.setStatus(JobStatus.REJECTED);
         return jobRepository.save(job);
+    }
+
+    @GetMapping("/admin/reported")
+    @PreAuthorize("hasRole('ADMIN')")
+    public List<JobReport> getReportedJobs() {
+        return jobReportRepository.findByResolvedFalseOrderByReportedAtDesc();
+    }
+
+    @PutMapping("/admin/{jobId}/dismiss-report")
+    @PreAuthorize("hasRole('ADMIN')")
+    public Job dismissReport(@PathVariable Long jobId) {
+        Job job = jobRepository.findById(jobId).orElseThrow(() -> new NotFoundException("Job not found"));
+        resolveOpenReports(jobId);
+        job.setUnderReview(false);
+        job.setActive(true);
+        Job saved = jobRepository.save(job);
+        log.info("Report(s) dismissed, job restored to active: jobId={}", jobId);
+        return saved;
+    }
+
+    @PutMapping("/admin/{jobId}/block")
+    @PreAuthorize("hasRole('ADMIN')")
+    public Job blockJob(@PathVariable Long jobId) {
+        Job job = jobRepository.findById(jobId).orElseThrow(() -> new NotFoundException("Job not found"));
+        resolveOpenReports(jobId);
+        job.setUnderReview(false);
+        job.setBlocked(true);
+        job.setActive(false);
+        Job saved = jobRepository.save(job);
+        log.info("Job blocked following report(s): jobId={}", jobId);
+        return saved;
+    }
+
+    private void resolveOpenReports(Long jobId) {
+        List<JobReport> openReports = jobReportRepository.findByJobIdAndResolvedFalse(jobId);
+        openReports.forEach(r -> r.setResolved(true));
+        jobReportRepository.saveAll(openReports);
     }
 
     private RecruiterAuthResponse toAuthResponse(String token, Recruiter recruiter) {

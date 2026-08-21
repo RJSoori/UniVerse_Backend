@@ -63,6 +63,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/marketplace/sellers/email/verify-code").permitAll()
                         // Public job browsing
                         .requestMatchers(HttpMethod.GET, "/api/jobs/all").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/jobs/market-trend").permitAll()
                         // Recruiter registration and login
                         .requestMatchers(HttpMethod.POST, "/api/jobs/recruiters").permitAll()
                         .requestMatchers("/api/jobs/recruiters/login").permitAll()

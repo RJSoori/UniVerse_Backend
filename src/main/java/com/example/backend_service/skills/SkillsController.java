@@ -2,6 +2,7 @@ package com.example.backend_service.skills;
 
 import com.example.backend_service.AzureBlobService;
 import com.example.backend_service.common.exception.BadRequestException;
+import com.example.backend_service.common.exception.ForbiddenException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -61,10 +62,28 @@ public class SkillsController {
         return toResponse(profile);
     }
 
+    /** Records that the student has read and accepted the CV privacy notice (their CV text is
+     * sent to Google's Gemini API for skill extraction). One-time - never asked again once set. */
+    @PostMapping("/cv-privacy-policy/accept")
+    public Map<String, Object> acceptCvPrivacyPolicy(@AuthenticationPrincipal Long authStudentId) {
+        StudentSkillProfile profile = findOrCreate(authStudentId);
+        profile.setCvPrivacyPolicyAcceptedAt(Instant.now());
+        repository.save(profile);
+        log.info("student={} accepted the CV privacy policy", authStudentId);
+        return toResponse(profile);
+    }
+
     @PostMapping("/cv")
     public Map<String, Object> uploadCv(
             @AuthenticationPrincipal Long authStudentId,
             @RequestParam("file") MultipartFile file) throws java.io.IOException {
+        StudentSkillProfile profile = findOrCreate(authStudentId);
+        // Hard-blocked server-side, not just hidden in the UI - a student must explicitly accept
+        // that their CV is sent to a third-party AI (Gemini) before we ever do that, every time
+        // they try, until they accept once.
+        if (profile.getCvPrivacyPolicyAcceptedAt() == null) {
+            throw new ForbiddenException("Please review and accept the CV privacy notice before uploading your CV.");
+        }
         if (file == null || file.isEmpty()) {
             throw new BadRequestException("Please choose a CV file to upload.");
         }
@@ -78,7 +97,6 @@ public class SkillsController {
         // Upload after extraction succeeds - no point keeping a CV we couldn't analyze.
         String cvUrl = azureBlobService.uploadFile(file);
 
-        StudentSkillProfile profile = findOrCreate(authStudentId);
         List<String> existing = readSkills(profile);
         // Only the subset Gemini found that the student didn't already have - "extracted" is
         // everything Gemini found in the CV this time, which usually overlaps heavily with
@@ -154,6 +172,7 @@ public class SkillsController {
         response.put("skills", readSkills(profile));
         response.put("cvUrl", profile.getCvUrl());
         response.put("cvUploadedAt", profile.getCvUploadedAt());
+        response.put("cvPrivacyPolicyAccepted", profile.getCvPrivacyPolicyAcceptedAt() != null);
         return response;
     }
 }

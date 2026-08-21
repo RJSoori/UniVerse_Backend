@@ -4,20 +4,28 @@ import com.example.backend_service.RecruiterStatus;
 import com.example.backend_service.common.exception.GlobalExceptionHandler;
 import com.example.backend_service.jobhub.controller.JobHubController;
 import com.example.backend_service.jobhub.dto.JobRequest;
+import com.example.backend_service.jobhub.dto.JobReportRequest;
 import com.example.backend_service.jobhub.dto.JobUpdateRequest;
 import com.example.backend_service.jobhub.dto.RecruiterProfileResponse;
 import com.example.backend_service.jobhub.enums.JobStatus;
 import com.example.backend_service.jobhub.model.Job;
+import com.example.backend_service.jobhub.model.JobReport;
 import com.example.backend_service.jobhub.model.Recruiter;
+import com.example.backend_service.jobhub.repository.JobReportRepository;
 import com.example.backend_service.jobhub.repository.JobRepository;
 import com.example.backend_service.jobhub.repository.RecruiterRepository;
 import com.example.backend_service.jobhub.service.RecruiterJwtService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -35,11 +43,16 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 
 public class JobHubControllerTest {
 
     private JobRepository jobRepository;
+    private JobReportRepository jobReportRepository;
     private RecruiterRepository recruiterRepository;
     private JobHubController controller;
     private MockMvc mockMvc;
@@ -48,14 +61,30 @@ public class JobHubControllerTest {
     @BeforeEach
     void setup() {
         jobRepository = Mockito.mock(JobRepository.class);
+        jobReportRepository = Mockito.mock(JobReportRepository.class);
         recruiterRepository = Mockito.mock(RecruiterRepository.class);
         controller = new JobHubController();
         // inject mocks via reflection since controller uses field injection
         com.example.backend_service.TestUtils.setField(controller, "jobRepository", jobRepository);
+        com.example.backend_service.TestUtils.setField(controller, "jobReportRepository", jobReportRepository);
         com.example.backend_service.TestUtils.setField(controller, "recruiterRepository", recruiterRepository);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())
+                // @AuthenticationPrincipal isn't resolved by default outside a real security
+                // filter chain - the report endpoint needs it to read the reporting student's id.
+                .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
                 .build();
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
+    }
+
+    private void authenticateAsStudent(long studentId) {
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(
+                        studentId, null, List.of(new SimpleGrantedAuthority("ROLE_STUDENT"))));
     }
 
     @Test
@@ -81,8 +110,30 @@ public class JobHubControllerTest {
 
     @Test
     void getAllJobs_callsRepository() throws Exception {
-        when(jobRepository.findByStatusAndActive(JobStatus.APPROVED, true)).thenReturn(List.of(new Job()));
+        when(jobRepository.findByStatusAndActiveOrderByCreatedAtDescIdDesc(JobStatus.APPROVED, true))
+                .thenReturn(List.of(new Job()));
         mockMvc.perform(get("/api/jobs/all")).andExpect(status().isOk());
+    }
+
+    @Test
+    void getAllJobs_returnsNewestFirst() throws Exception {
+        Job older = new Job();
+        older.setId(1L);
+        older.setTitle("Older Posting");
+        older.setCreatedAt(Instant.now().minus(2, ChronoUnit.DAYS));
+        Job newer = new Job();
+        newer.setId(2L);
+        newer.setTitle("Newer Posting");
+        newer.setCreatedAt(Instant.now());
+        // Repository is trusted to already return newest-first (ORDER BY createdAt DESC) -
+        // this just confirms the controller passes that order straight through untouched.
+        when(jobRepository.findByStatusAndActiveOrderByCreatedAtDescIdDesc(JobStatus.APPROVED, true))
+                .thenReturn(List.of(newer, older));
+
+        mockMvc.perform(get("/api/jobs/all"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].title").value("Newer Posting"))
+                .andExpect(jsonPath("$[1].title").value("Older Posting"));
     }
 
     @Test
@@ -422,5 +473,179 @@ public class JobHubControllerTest {
         assertThat(r.getOrgLogoUrl()).isEqualTo("https://blob/old-logo.png");
         assertThat(r.getAuthLetterUrl()).isEqualTo("https://blob/old-letter.pdf");
         assertThat(r.getStatus()).isEqualTo(RecruiterStatus.RE_VERIFICATION);
+    }
+
+    // ---- report a job ----
+
+    @Test
+    void reportJob_createsReportAndDeactivatesJob() throws Exception {
+        authenticateAsStudent(77L);
+
+        Job job = new Job();
+        job.setId(12L);
+        job.setActive(true);
+        when(jobRepository.findById(12L)).thenReturn(Optional.of(job));
+        when(jobRepository.save(any(Job.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(jobReportRepository.existsByJobIdAndReportedByStudentIdAndResolvedFalse(12L, 77L))
+                .thenReturn(false);
+        when(jobReportRepository.save(any(JobReport.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        JobReportRequest request = new JobReportRequest("Spam or scam");
+
+        mockMvc.perform(post("/api/jobs/12/report")
+                        .contentType("application/json")
+                        .content(mapper.writeValueAsString(request)))
+                .andExpect(status().isOk());
+
+        assertThat(job.isUnderReview()).isTrue();
+        assertThat(job.isActive()).isFalse();
+        verify(jobReportRepository).save(any(JobReport.class));
+    }
+
+    @Test
+    void reportJob_blankReason_returns400() throws Exception {
+        authenticateAsStudent(77L);
+        JobReportRequest request = new JobReportRequest("  ");
+
+        mockMvc.perform(post("/api/jobs/12/report")
+                        .contentType("application/json")
+                        .content(mapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+
+        verify(jobReportRepository, never()).save(any(JobReport.class));
+    }
+
+    @Test
+    void reportJob_alreadyReportedByThisStudent_doesNotCreateSecondReport() throws Exception {
+        authenticateAsStudent(77L);
+
+        Job job = new Job();
+        job.setId(12L);
+        when(jobRepository.findById(12L)).thenReturn(Optional.of(job));
+        when(jobReportRepository.existsByJobIdAndReportedByStudentIdAndResolvedFalse(12L, 77L))
+                .thenReturn(true);
+
+        JobReportRequest request = new JobReportRequest("Spam or scam");
+
+        mockMvc.perform(post("/api/jobs/12/report")
+                        .contentType("application/json")
+                        .content(mapper.writeValueAsString(request)))
+                .andExpect(status().isOk());
+
+        verify(jobReportRepository, never()).save(any(JobReport.class));
+    }
+
+    // ---- recruiter can't reactivate a reported/blocked job themselves ----
+
+    @Test
+    void setJobActive_underReview_rejectsReactivation() throws Exception {
+        RecruiterJwtService recruiterJwtService = Mockito.mock(RecruiterJwtService.class);
+        com.example.backend_service.TestUtils.setField(controller, "recruiterJwtService", recruiterJwtService);
+        when(recruiterJwtService.parse("valid-token")).thenReturn(40L);
+
+        Job job = new Job();
+        job.setId(7L);
+        job.setActive(false);
+        job.setUnderReview(true);
+        when(jobRepository.findByIdAndRecruiterId(7L, 40L)).thenReturn(Optional.of(job));
+
+        mockMvc.perform(patch("/api/jobs/recruiters/40/jobs/7/active")
+                        .header("X-Recruiter-Token", "valid-token")
+                        .param("active", "true"))
+                .andExpect(status().isForbidden());
+
+        assertThat(job.isActive()).isFalse();
+        verify(jobRepository, never()).save(any(Job.class));
+    }
+
+    @Test
+    void setJobActive_blocked_rejectsReactivation() throws Exception {
+        RecruiterJwtService recruiterJwtService = Mockito.mock(RecruiterJwtService.class);
+        com.example.backend_service.TestUtils.setField(controller, "recruiterJwtService", recruiterJwtService);
+        when(recruiterJwtService.parse("valid-token")).thenReturn(40L);
+
+        Job job = new Job();
+        job.setId(7L);
+        job.setActive(false);
+        job.setBlocked(true);
+        when(jobRepository.findByIdAndRecruiterId(7L, 40L)).thenReturn(Optional.of(job));
+
+        mockMvc.perform(patch("/api/jobs/recruiters/40/jobs/7/active")
+                        .header("X-Recruiter-Token", "valid-token")
+                        .param("active", "true"))
+                .andExpect(status().isForbidden());
+
+        assertThat(job.isActive()).isFalse();
+        verify(jobRepository, never()).save(any(Job.class));
+    }
+
+    // ---- admin: dismiss report / block job ----
+
+    @Test
+    void dismissReport_resolvesReportsAndReactivatesJob() throws Exception {
+        Job job = new Job();
+        job.setId(12L);
+        job.setActive(false);
+        job.setUnderReview(true);
+        when(jobRepository.findById(12L)).thenReturn(Optional.of(job));
+        when(jobRepository.save(any(Job.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        JobReport report = new JobReport();
+        report.setId(1L);
+        report.setResolved(false);
+        when(jobReportRepository.findByJobIdAndResolvedFalse(12L)).thenReturn(List.of(report));
+
+        mockMvc.perform(put("/api/jobs/admin/12/dismiss-report"))
+                .andExpect(status().isOk());
+
+        assertThat(job.isUnderReview()).isFalse();
+        assertThat(job.isActive()).isTrue();
+        assertThat(report.isResolved()).isTrue();
+        verify(jobReportRepository).saveAll(List.of(report));
+    }
+
+    @Test
+    void blockJob_resolvesReportsAndBlocksJob() throws Exception {
+        Job job = new Job();
+        job.setId(12L);
+        job.setActive(false);
+        job.setUnderReview(true);
+        when(jobRepository.findById(12L)).thenReturn(Optional.of(job));
+        when(jobRepository.save(any(Job.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        JobReport report = new JobReport();
+        report.setId(1L);
+        report.setResolved(false);
+        when(jobReportRepository.findByJobIdAndResolvedFalse(12L)).thenReturn(List.of(report));
+
+        mockMvc.perform(put("/api/jobs/admin/12/block"))
+                .andExpect(status().isOk());
+
+        assertThat(job.isUnderReview()).isFalse();
+        assertThat(job.isBlocked()).isTrue();
+        assertThat(job.isActive()).isFalse();
+        assertThat(report.isResolved()).isTrue();
+    }
+
+    // ---- market trend ----
+    // The actual computation (grouping, Gemini clustering, caching) now lives in
+    // MarketTrendService - see MarketTrendServiceTest. This just confirms the controller
+    // delegates to it rather than re-implementing anything itself.
+
+    @Test
+    void getMarketTrend_delegatesToMarketTrendService() throws Exception {
+        com.example.backend_service.jobhub.service.MarketTrendService marketTrendService =
+                Mockito.mock(com.example.backend_service.jobhub.service.MarketTrendService.class);
+        com.example.backend_service.TestUtils.setField(controller, "marketTrendService", marketTrendService);
+
+        List<com.example.backend_service.jobhub.dto.MarketTrendEntry> trend =
+                List.of(new com.example.backend_service.jobhub.dto.MarketTrendEntry("Software Engineering Intern", 2));
+        when(marketTrendService.getTrend()).thenReturn(trend);
+
+        mockMvc.perform(get("/api/jobs/market-trend"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].title").value("Software Engineering Intern"))
+                .andExpect(jsonPath("$[0].postingCount").value(2));
     }
 }

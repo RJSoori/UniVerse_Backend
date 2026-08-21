@@ -29,7 +29,7 @@ class SkillMatchControllerTest {
 
     @Test
     void getSuggestedSkills_delegatesToService() {
-        List<SuggestedSkill> suggestions = List.of(new SuggestedSkill("Docker", 3));
+        List<SuggestedSkill> suggestions = List.of(new SuggestedSkill(List.of("Docker"), 3));
         when(skillMatchService.computeSuggestedSkills(42L)).thenReturn(suggestions);
 
         assertThat(controller.getSuggestedSkills(42L)).isEqualTo(suggestions);
