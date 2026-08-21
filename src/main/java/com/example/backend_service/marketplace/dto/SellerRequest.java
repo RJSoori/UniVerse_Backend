@@ -28,6 +28,11 @@ public class SellerRequest {
 
     private String description;
 
+    // Populated by the controller after uploading the corresponding multipart file, if any.
+    private String identityDocumentUrl;
+    private String shopLogoUrl;
+    private String proofOfItemsUrl;
+
     @NotBlank
     private String emailVerificationToken;
 
@@ -43,6 +48,12 @@ public class SellerRequest {
     public void setPhone(String phone) { this.phone = phone; }
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
+    public String getIdentityDocumentUrl() { return identityDocumentUrl; }
+    public void setIdentityDocumentUrl(String identityDocumentUrl) { this.identityDocumentUrl = identityDocumentUrl; }
+    public String getShopLogoUrl() { return shopLogoUrl; }
+    public void setShopLogoUrl(String shopLogoUrl) { this.shopLogoUrl = shopLogoUrl; }
+    public String getProofOfItemsUrl() { return proofOfItemsUrl; }
+    public void setProofOfItemsUrl(String proofOfItemsUrl) { this.proofOfItemsUrl = proofOfItemsUrl; }
     public String getEmailVerificationToken() { return emailVerificationToken; }
     public void setEmailVerificationToken(String emailVerificationToken) { this.emailVerificationToken = emailVerificationToken; }
 }

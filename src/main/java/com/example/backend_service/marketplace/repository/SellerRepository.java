@@ -4,6 +4,7 @@ import com.example.backend_service.marketplace.model.Seller;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -23,4 +24,10 @@ public interface SellerRepository extends JpaRepository<Seller, Long> {
      * Used during login to authenticate seller credentials.
      */
     Optional<Seller> findByUsername(String username);
+
+    /**
+     * Retrieves every seller, most recently registered first. Used for the admin
+     * verification/registered-accounts queues.
+     */
+    List<Seller> findAllByOrderByRegisteredAtDesc();
 }

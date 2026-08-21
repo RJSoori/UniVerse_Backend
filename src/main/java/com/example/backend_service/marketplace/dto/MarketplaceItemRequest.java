@@ -27,6 +27,11 @@ public class MarketplaceItemRequest {
 
     private String imageUrl;
 
+    private String category;
+
+    // How many identical units this listing represents. Optional; defaults to 1.
+    private Integer totalUnits;
+
     @NotNull
     private Long sellerId;
 
@@ -42,6 +47,10 @@ public class MarketplaceItemRequest {
     public void setCondition(ItemCondition condition) { this.condition = condition; }
     public String getImageUrl() { return imageUrl; }
     public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
+    public String getCategory() { return category; }
+    public void setCategory(String category) { this.category = category; }
+    public Integer getTotalUnits() { return totalUnits; }
+    public void setTotalUnits(Integer totalUnits) { this.totalUnits = totalUnits; }
     public Long getSellerId() { return sellerId; }
     public void setSellerId(Long sellerId) { this.sellerId = sellerId; }
 }

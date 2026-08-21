@@ -41,11 +41,33 @@ public class Seller {
 
     private String description;
 
+    // Verification documents uploaded at registration (Azure Blob URLs). "identityDocument"
+    // holds either the BR certificate (shop sellers) or NIC/student ID (individual sellers).
+    private String identityDocumentUrl;
+    private String shopLogoUrl;
+    private String proofOfItemsUrl;
+
     @Enumerated(EnumType.STRING)
     private SellerStatus status = SellerStatus.PENDING;
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime registeredAt;
+
+    // ── Notification preferences (seller settings page) ──
+    @Column(nullable = false, columnDefinition = "TINYINT(1) DEFAULT 1")
+    private boolean notifyNewMessage = true;
+    @Column(nullable = false, columnDefinition = "TINYINT(1) DEFAULT 1")
+    private boolean notifyNewOffer = true;
+    @Column(nullable = false, columnDefinition = "TINYINT(1) DEFAULT 0")
+    private boolean notifyListingExpiry = false;
+    @Column(nullable = false, columnDefinition = "TINYINT(1) DEFAULT 1")
+    private boolean notifyPlatformUpdates = true;
+
+    // ── Moderation (repeated policy violations) ──
+    @Column(nullable = false, columnDefinition = "INT DEFAULT 0")
+    private int warningCount = 0;
+    @Column(nullable = false, columnDefinition = "TINYINT(1) DEFAULT 0")
+    private boolean banned = false;
 
     // ── Password reset (forgot password flow) ──
     @JsonIgnore
@@ -80,10 +102,28 @@ public class Seller {
     public void setPhone(String phone) { this.phone = phone; }
     public String getDescription() { return description; }
     public void setDescription(String description) { this.description = description; }
+    public String getIdentityDocumentUrl() { return identityDocumentUrl; }
+    public void setIdentityDocumentUrl(String identityDocumentUrl) { this.identityDocumentUrl = identityDocumentUrl; }
+    public String getShopLogoUrl() { return shopLogoUrl; }
+    public void setShopLogoUrl(String shopLogoUrl) { this.shopLogoUrl = shopLogoUrl; }
+    public String getProofOfItemsUrl() { return proofOfItemsUrl; }
+    public void setProofOfItemsUrl(String proofOfItemsUrl) { this.proofOfItemsUrl = proofOfItemsUrl; }
     public SellerStatus getStatus() { return status; }
     public void setStatus(SellerStatus status) { this.status = status; }
     public LocalDateTime getRegisteredAt() { return registeredAt; }
     public void setRegisteredAt(LocalDateTime registeredAt) { this.registeredAt = registeredAt; }
+    public boolean isNotifyNewMessage() { return notifyNewMessage; }
+    public void setNotifyNewMessage(boolean notifyNewMessage) { this.notifyNewMessage = notifyNewMessage; }
+    public boolean isNotifyNewOffer() { return notifyNewOffer; }
+    public void setNotifyNewOffer(boolean notifyNewOffer) { this.notifyNewOffer = notifyNewOffer; }
+    public boolean isNotifyListingExpiry() { return notifyListingExpiry; }
+    public void setNotifyListingExpiry(boolean notifyListingExpiry) { this.notifyListingExpiry = notifyListingExpiry; }
+    public boolean isNotifyPlatformUpdates() { return notifyPlatformUpdates; }
+    public void setNotifyPlatformUpdates(boolean notifyPlatformUpdates) { this.notifyPlatformUpdates = notifyPlatformUpdates; }
+    public int getWarningCount() { return warningCount; }
+    public void setWarningCount(int warningCount) { this.warningCount = warningCount; }
+    public boolean isBanned() { return banned; }
+    public void setBanned(boolean banned) { this.banned = banned; }
     public String getResetCodeHash() { return resetCodeHash; }
     public void setResetCodeHash(String resetCodeHash) { this.resetCodeHash = resetCodeHash; }
     public Instant getResetCodeExpiresAt() { return resetCodeExpiresAt; }

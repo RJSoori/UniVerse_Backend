@@ -10,16 +10,27 @@ import com.example.backend_service.common.dto.VerifyResetCodeRequest;
 import com.example.backend_service.common.dto.VerifyResetCodeResponse;
 import com.example.backend_service.common.exception.ForbiddenException;
 import com.example.backend_service.common.exception.NotFoundException;
+import com.example.backend_service.marketplace.dto.AdminSellerResponse;
+import com.example.backend_service.marketplace.dto.ChangePasswordRequest;
+import com.example.backend_service.marketplace.dto.ChatMessageResponse;
+import com.example.backend_service.marketplace.dto.ConversationResponse;
+import com.example.backend_service.marketplace.dto.ListingReportResponse;
 import com.example.backend_service.marketplace.dto.MarketplaceItemRequest;
 import com.example.backend_service.marketplace.dto.MarketplaceItemResponse;
+import com.example.backend_service.marketplace.dto.ReportItemRequest;
+import com.example.backend_service.marketplace.dto.RecordUnitsSoldRequest;
+import com.example.backend_service.marketplace.dto.ReverifyRequest;
 import com.example.backend_service.marketplace.dto.SellerAuthResponse;
 import com.example.backend_service.marketplace.dto.SellerLoginRequest;
 import com.example.backend_service.marketplace.dto.SellerRequest;
 import com.example.backend_service.marketplace.dto.SellerResponse;
+import com.example.backend_service.marketplace.dto.SellerReverificationRequestResponse;
 import com.example.backend_service.marketplace.dto.SellerUpdateRequest;
+import com.example.backend_service.marketplace.dto.SendMessageRequest;
 import com.example.backend_service.marketplace.enums.SellerStatus;
 import com.example.backend_service.marketplace.model.MarketplaceItem;
 import com.example.backend_service.marketplace.repository.MarketplaceItemRepository;
+import com.example.backend_service.marketplace.service.ChatService;
 import com.example.backend_service.marketplace.service.MarketplaceService;
 import com.example.backend_service.marketplace.service.SellerEmailVerificationService;
 import com.example.backend_service.marketplace.service.SellerJwtService;
@@ -30,6 +41,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -57,6 +69,9 @@ public class MarketplaceController {
 
     @Autowired
     private SellerEmailVerificationService sellerEmailVerificationService;
+
+    @Autowired
+    private ChatService chatService;
 
     @PostMapping("/sellers/forgot-password")
     public Map<String, String> forgotPassword(@RequestBody ForgotPasswordRequest request) {
@@ -89,10 +104,40 @@ public class MarketplaceController {
     }
 
     @PostMapping("/sellers/register")
-    public ResponseEntity<SellerAuthResponse> registerSeller(@Valid @RequestBody SellerRequest request) {
+    public ResponseEntity<SellerAuthResponse> registerSeller(
+            @RequestParam("storeName") String storeName,
+            @RequestParam("email") String email,
+            @RequestParam("username") String username,
+            @RequestParam("password") String password,
+            @RequestParam(value = "phone", required = false) String phone,
+            @RequestParam(value = "description", required = false) String description,
+            @RequestParam("emailVerificationToken") String emailVerificationToken,
+            @RequestParam(value = "identityDocument", required = false) MultipartFile identityDocument,
+            @RequestParam(value = "shopLogo", required = false) MultipartFile shopLogo,
+            @RequestParam(value = "proofOfItems", required = false) MultipartFile proofOfItems
+    ) throws IOException {
         // Registration is only allowed once the email has been verified via the
         // send-code/verify-code pair above; this consumes (and single-uses) that token.
-        sellerEmailVerificationService.consumeVerification(request.getEmail(), request.getEmailVerificationToken());
+        sellerEmailVerificationService.consumeVerification(email, emailVerificationToken);
+
+        SellerRequest request = new SellerRequest();
+        request.setStoreName(storeName);
+        request.setEmail(email);
+        request.setUsername(username);
+        request.setPassword(password);
+        request.setPhone(phone);
+        request.setDescription(description);
+        request.setEmailVerificationToken(emailVerificationToken);
+        if (identityDocument != null && !identityDocument.isEmpty()) {
+            request.setIdentityDocumentUrl(azureBlobService.uploadFile(identityDocument));
+        }
+        if (shopLogo != null && !shopLogo.isEmpty()) {
+            request.setShopLogoUrl(azureBlobService.uploadFile(shopLogo));
+        }
+        if (proofOfItems != null && !proofOfItems.isEmpty()) {
+            request.setProofOfItemsUrl(azureBlobService.uploadFile(proofOfItems));
+        }
+
         return ResponseEntity.ok(marketplaceService.registerSeller(request));
     }
 
@@ -113,7 +158,7 @@ public class MarketplaceController {
 
     @GetMapping("/sellers")
     @PreAuthorize("hasRole('ADMIN')")
-    public List<SellerResponse> getAllSellers() {
+    public List<AdminSellerResponse> getAllSellers() {
         return marketplaceService.getAllSellers();
     }
 
@@ -128,6 +173,12 @@ public class MarketplaceController {
         return ResponseEntity.ok(marketplaceService.updateSellerStatus(id, SellerStatus.valueOf(status.toUpperCase())));
     }
 
+    @PutMapping("/sellers/{id}/lift-ban")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<SellerResponse> liftSellerBan(@PathVariable Long id) {
+        return ResponseEntity.ok(marketplaceService.liftBan(id));
+    }
+
     @PutMapping("/sellers/me")
     public ResponseEntity<SellerResponse> updateMySellerProfile(
             @RequestHeader(value = "X-Seller-Token", required = false) String sellerToken,
@@ -137,6 +188,33 @@ public class MarketplaceController {
         }
         Long sellerId = sellerJwtService.parse(sellerToken);
         return ResponseEntity.ok(marketplaceService.updateSeller(sellerId, request));
+    }
+
+    @PutMapping("/sellers/me/password")
+    public Map<String, String> changeMyPassword(
+            @RequestHeader("X-Seller-Token") String sellerToken,
+            @Valid @RequestBody ChangePasswordRequest request) {
+        Long sellerId = sellerJwtService.parse(sellerToken);
+        marketplaceService.changePassword(sellerId, request.currentPassword(), request.newPassword());
+        return Map.of("message", "Password updated successfully.");
+    }
+
+    @PutMapping("/sellers/me/logo")
+    public ResponseEntity<SellerResponse> updateMyShopLogo(
+            @RequestHeader("X-Seller-Token") String sellerToken,
+            @RequestParam("logo") MultipartFile logo) throws IOException {
+        Long sellerId = sellerJwtService.parse(sellerToken);
+        String logoUrl = azureBlobService.uploadFile(logo);
+        return ResponseEntity.ok(marketplaceService.updateShopLogo(sellerId, logoUrl));
+    }
+
+    @PostMapping("/sellers/me/reverify")
+    @ResponseStatus(HttpStatus.CREATED)
+    public SellerReverificationRequestResponse requestReverification(
+            @RequestHeader("X-Seller-Token") String sellerToken,
+            @Valid @RequestBody ReverifyRequest request) {
+        Long sellerId = sellerJwtService.parse(sellerToken);
+        return marketplaceService.submitReverificationRequest(sellerId, request);
     }
 
     @GetMapping("/items")
@@ -154,6 +232,78 @@ public class MarketplaceController {
         return marketplaceService.getItemsBySeller(sellerId);
     }
 
+    @GetMapping("/sellers/me/items")
+    public List<MarketplaceItemResponse> getMyItems(@RequestHeader("X-Seller-Token") String sellerToken) {
+        Long sellerId = sellerJwtService.parse(sellerToken);
+        return marketplaceService.getMyItems(sellerId);
+    }
+
+    @PostMapping("/items/{id}/report")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ListingReportResponse reportItem(
+            @AuthenticationPrincipal Long studentId,
+            @PathVariable Long id,
+            @Valid @RequestBody ReportItemRequest request) {
+        return marketplaceService.reportItem(id, studentId, request.reason());
+    }
+
+    // Chat Endpoints
+    // Both the "as buyer" and "as seller" endpoints below accept either identity: a
+    // student JWT (cookie/Authorization header) or an X-Seller-Token header. Whichever
+    // is present determines which side of the conversation the caller is acting as.
+
+    @PostMapping("/items/{id}/conversations")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ConversationResponse startConversation(
+            @AuthenticationPrincipal Long studentId,
+            @PathVariable Long id) {
+        return chatService.startConversation(id, studentId);
+    }
+
+    @GetMapping("/conversations")
+    public List<ConversationResponse> getMyConversations(@AuthenticationPrincipal Long studentId) {
+        return chatService.getBuyerConversations(studentId);
+    }
+
+    @GetMapping("/sellers/me/conversations")
+    public List<ConversationResponse> getMySellerConversations(
+            @RequestHeader("X-Seller-Token") String sellerToken) {
+        Long sellerId = sellerJwtService.parse(sellerToken);
+        return chatService.getSellerConversations(sellerId);
+    }
+
+    @GetMapping("/conversations/{id}/messages")
+    public List<ChatMessageResponse> getMessages(
+            @RequestHeader(value = "X-Seller-Token", required = false) String sellerToken,
+            @AuthenticationPrincipal Long studentId,
+            @PathVariable Long id) {
+        Long sellerId = sellerToken != null ? sellerJwtService.parse(sellerToken) : null;
+        return chatService.getMessages(id, studentId, sellerId);
+    }
+
+    @PostMapping("/conversations/{id}/messages")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ChatMessageResponse sendMessage(
+            @RequestHeader(value = "X-Seller-Token", required = false) String sellerToken,
+            @AuthenticationPrincipal Long studentId,
+            @PathVariable Long id,
+            @Valid @RequestBody SendMessageRequest request) {
+        Long sellerId = sellerToken != null ? sellerJwtService.parse(sellerToken) : null;
+        return chatService.sendMessage(id, studentId, sellerId, request.content());
+    }
+
+    @PostMapping("/conversations/{id}/messages/image")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ChatMessageResponse sendImageMessage(
+            @RequestHeader(value = "X-Seller-Token", required = false) String sellerToken,
+            @AuthenticationPrincipal Long studentId,
+            @PathVariable Long id,
+            @RequestParam("image") MultipartFile image) throws IOException {
+        Long sellerId = sellerToken != null ? sellerJwtService.parse(sellerToken) : null;
+        String imageUrl = azureBlobService.uploadFile(image);
+        return chatService.sendImageMessage(id, studentId, sellerId, imageUrl);
+    }
+
     @PostMapping("/items")
     @ResponseStatus(HttpStatus.CREATED)
     public MarketplaceItemResponse createItem(
@@ -164,14 +314,34 @@ public class MarketplaceController {
         return marketplaceService.createItem(request);
     }
 
-    @PostMapping("/items/{id}/image")
-    public MarketplaceItemResponse uploadItemImage(
+    @PostMapping("/items/{id}/images")
+    public MarketplaceItemResponse uploadItemImages(
             @RequestHeader("X-Seller-Token") String sellerToken,
             @PathVariable Long id,
-            @RequestParam("image") MultipartFile image) throws IOException {
+            @RequestParam("images") List<MultipartFile> images) throws IOException {
         Long sellerId = sellerJwtService.parse(sellerToken);
-        String imageUrl = azureBlobService.uploadFile(image);
-        return marketplaceService.updateItemImage(id, sellerId, imageUrl);
+        List<String> imageUrls = new java.util.ArrayList<>();
+        for (MultipartFile image : images) {
+            imageUrls.add(azureBlobService.uploadFile(image));
+        }
+        return marketplaceService.addItemImages(id, sellerId, imageUrls);
+    }
+
+    @PostMapping("/items/{id}/units-sold")
+    public MarketplaceItemResponse recordUnitsSold(
+            @RequestHeader("X-Seller-Token") String sellerToken,
+            @PathVariable Long id,
+            @Valid @RequestBody RecordUnitsSoldRequest request) {
+        Long sellerId = sellerJwtService.parse(sellerToken);
+        return marketplaceService.recordUnitsSold(id, sellerId, request.quantity());
+    }
+
+    @PostMapping("/items/{id}/reopen-for-rent")
+    public MarketplaceItemResponse reopenForRent(
+            @RequestHeader("X-Seller-Token") String sellerToken,
+            @PathVariable Long id) {
+        Long sellerId = sellerJwtService.parse(sellerToken);
+        return marketplaceService.reopenForRent(id, sellerId);
     }
 
     @DeleteMapping("/items/{id}")
@@ -186,5 +356,60 @@ public class MarketplaceController {
             throw new ForbiddenException();
         }
         marketplaceService.deleteItem(id);
+    }
+
+    // Admin Endpoints
+    @GetMapping("/admin/pending")
+    @PreAuthorize("hasRole('ADMIN')")
+    public List<MarketplaceItemResponse> getPendingItems() {
+        return marketplaceService.getPendingItems();
+    }
+
+    @PutMapping("/admin/{id}/approve")
+    @PreAuthorize("hasRole('ADMIN')")
+    public MarketplaceItemResponse approveItem(@PathVariable Long id) {
+        return marketplaceService.approveItem(id);
+    }
+
+    @PutMapping("/admin/{id}/reject")
+    @PreAuthorize("hasRole('ADMIN')")
+    public MarketplaceItemResponse rejectItem(@PathVariable Long id) {
+        return marketplaceService.rejectItem(id);
+    }
+
+    @GetMapping("/admin/reports")
+    @PreAuthorize("hasRole('ADMIN')")
+    public List<ListingReportResponse> getOpenReports() {
+        return marketplaceService.getOpenReports();
+    }
+
+    @PutMapping("/admin/reports/{id}/resolve")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ListingReportResponse resolveReport(@PathVariable Long id) {
+        return marketplaceService.resolveReport(id);
+    }
+
+    @PutMapping("/admin/reports/{id}/reinstate")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ListingReportResponse reinstateListing(@PathVariable Long id) {
+        return marketplaceService.reinstateListing(id);
+    }
+
+    @GetMapping("/admin/reports/history")
+    @PreAuthorize("hasRole('ADMIN')")
+    public List<ListingReportResponse> getReportHistory() {
+        return marketplaceService.getReportHistory();
+    }
+
+    @GetMapping("/admin/reverifications")
+    @PreAuthorize("hasRole('ADMIN')")
+    public List<SellerReverificationRequestResponse> getOpenReverificationRequests() {
+        return marketplaceService.getOpenReverificationRequests();
+    }
+
+    @PutMapping("/admin/reverifications/{id}/resolve")
+    @PreAuthorize("hasRole('ADMIN')")
+    public SellerReverificationRequestResponse resolveReverificationRequest(@PathVariable Long id) {
+        return marketplaceService.resolveReverificationRequest(id);
     }
 }
