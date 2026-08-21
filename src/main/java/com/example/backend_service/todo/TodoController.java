@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.time.LocalDate;
 
 @RestController
 @RequestMapping("/api/todos")
@@ -30,6 +31,7 @@ public class TodoController {
         if (todo.getTitle() == null || todo.getTitle().isBlank()) {
             throw new IllegalArgumentException("title is required");
         }
+        validateDueDate(todo.getDueDate());
         todo.setId(null);
         todo.setStudentId(authStudentId);
         return todoRepository.save(todo);
@@ -44,6 +46,7 @@ public class TodoController {
         if (!authStudentId.equals(todo.getStudentId())) {
             throw new ForbiddenException();
         }
+        validateDueDate(updateData.getDueDate());
         if (updateData.getTitle() != null && !updateData.getTitle().isBlank()) {
             todo.setTitle(updateData.getTitle());
         }
@@ -69,6 +72,12 @@ public class TodoController {
             todo.setReminderEnabled(updateData.getReminderEnabled());
         }
         return todoRepository.save(todo);
+    }
+
+    private void validateDueDate(LocalDate dueDate) {
+        if (dueDate != null && dueDate.isBefore(LocalDate.now())) {
+            throw new IllegalArgumentException("dueDate cannot be in the past");
+        }
     }
 
     @DeleteMapping("/{id}")

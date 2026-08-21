@@ -18,6 +18,7 @@ public class PersonalHabitDto {
     private String focusArea; // "education", "health", "fitness", etc.
     @JsonProperty("completedDates")
     private List<String> completedDates;
+    private String createdAt;
 
     public PersonalHabitDto() {
     }
@@ -57,4 +58,7 @@ public class PersonalHabitDto {
 
     public List<String> getCompletedDates() { return completedDates; }
     public void setCompletedDates(List<String> completedDates) { this.completedDates = completedDates; }
+
+    public String getCreatedAt() { return createdAt; }
+    public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }
 }
