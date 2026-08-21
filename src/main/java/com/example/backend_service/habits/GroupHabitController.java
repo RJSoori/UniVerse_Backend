@@ -46,13 +46,15 @@ public class GroupHabitController {
     private final GroupHabitRepository groupHabitRepository;
     private final StudentRepository studentRepository;
     private final PushNotificationService pushNotificationService;
+    private final GroupHabitInviteService groupHabitInviteService;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public GroupHabitController(GroupHabitRepository groupHabitRepository, StudentRepository studentRepository,
-            PushNotificationService pushNotificationService) {
+            PushNotificationService pushNotificationService, GroupHabitInviteService groupHabitInviteService) {
         this.groupHabitRepository = groupHabitRepository;
         this.studentRepository = studentRepository;
         this.pushNotificationService = pushNotificationService;
+        this.groupHabitInviteService = groupHabitInviteService;
     }
 
     /**
@@ -67,7 +69,7 @@ public class GroupHabitController {
         entity.setStudentId(authStudentId);
         GroupHabit saved = groupHabitRepository.save(entity);
         logger.info("Group created with id={}", saved.getId());
-        return ResponseEntity.ok(convertToDto(saved));
+        return ResponseEntity.ok(convertToDto(saved, authStudentId));
     }
 
     /**
@@ -79,7 +81,7 @@ public class GroupHabitController {
         List<GroupHabit> entities = groupHabitRepository.findVisibleToStudent(authStudentId, String.valueOf(authStudentId));
         logger.info("Found {} groups for student {}", entities.size(), authStudentId);
         List<GroupHabitDto> dtos = entities.stream()
-                .map(this::convertToDto)
+                .map(entity -> convertToDto(entity, authStudentId))
                 .collect(Collectors.toList());
         return ResponseEntity.ok(dtos);
     }
@@ -96,7 +98,7 @@ public class GroupHabitController {
         if (!isVisibleToStudent(existing, authStudentId)) {
             throw new ForbiddenException();
         }
-        return ResponseEntity.ok(convertToDto(existing));
+        return ResponseEntity.ok(convertToDto(existing, authStudentId));
     }
 
     /** Mirrors {@link GroupHabitRepository#findVisibleToStudent}: visible to the owner or any listed member. */
@@ -110,6 +112,17 @@ public class GroupHabitController {
 
     /**
      * Updates an existing group habit.
+     *
+     * <p>The owner (the student the group was created by) can edit everything — name, habit,
+     * description, invite code/link, icon, and the full member list — and handing off
+     * ownership when they remove themselves from that list (see
+     * {@link #transferOwnershipIfNeeded}) is how a member gets promoted after the owner
+     * leaves.
+     *
+     * <p>Any other member may only do two things through this endpoint: record their own
+     * completion dates, or remove themselves from the group (leave). Everything else in
+     * their request body — group details, the invite code/link, or other members' data — is
+     * silently ignored rather than trusted from the client.
      */
     @PutMapping("/{groupHabitId}")
     public ResponseEntity<GroupHabitDto> updateGroupHabit(
@@ -118,30 +131,131 @@ public class GroupHabitController {
             @RequestBody GroupHabitDto dto) {
         GroupHabit existing = groupHabitRepository.findById(groupHabitId)
                 .orElseThrow(NotFoundException::new);
-        if (!authStudentId.equals(existing.getStudentId())) {
+
+        List<GroupHabitDto.MemberDto> currentMembers = readMembers(existing.getMembersJson());
+        Map<String, List<String>> currentProgress = readMemberProgress(existing.getMemberProgressJson());
+        String selfId = String.valueOf(authStudentId);
+        boolean isOwner = authStudentId.equals(existing.getStudentId());
+
+        if (!isOwner && currentMembers.stream().noneMatch(m -> selfId.equals(m.getId()))) {
             throw new ForbiddenException();
         }
-        existing.setName(dto.getName());
-        existing.setHabitName(dto.getHabitName());
-        existing.setDescription(dto.getDescription());
-        existing.setCode(dto.getCode());
-        existing.setInviteLink(dto.getInviteLink());
-        existing.setIconId(dto.getIconId());
+
+        Map<String, List<String>> updatedProgress;
+
+        if (isOwner) {
+            existing.setName(dto.getName());
+            existing.setHabitName(dto.getHabitName());
+            existing.setDescription(dto.getDescription());
+            existing.setCode(dto.getCode());
+            existing.setInviteLink(dto.getInviteLink());
+            existing.setIconId(dto.getIconId());
+
+            List<GroupHabitDto.MemberDto> newMembers = dto.getMembers() != null ? dto.getMembers() : currentMembers;
+            writeMembers(existing, newMembers);
+            transferOwnershipIfNeeded(existing, authStudentId, dto.getOwnerId(), newMembers);
+
+            updatedProgress = normalizeMemberProgress(
+                    dto.getMemberProgress() != null ? dto.getMemberProgress() : currentProgress);
+        } else {
+            List<GroupHabitDto.MemberDto> newMembers = applySelfLeaveOnly(currentMembers, dto.getMembers(), selfId);
+            writeMembers(existing, newMembers);
+
+            Map<String, List<String>> merged = new LinkedHashMap<>(currentProgress);
+            if (dto.getMemberProgress() != null && dto.getMemberProgress().containsKey(selfId)) {
+                merged.put(selfId, sanitizeDates(dto.getMemberProgress().get(selfId)));
+            }
+            // Drop progress for anyone no longer listed as a member (covers self, once they leave).
+            merged.keySet().removeIf(id -> newMembers.stream().noneMatch(m -> id.equals(m.getId())));
+            updatedProgress = normalizeMemberProgress(merged);
+        }
+
+        persistProgress(existing, updatedProgress);
+        return ResponseEntity.ok(convertToDto(groupHabitRepository.save(existing), authStudentId));
+    }
+
+    /**
+     * Hands ownership to a remaining member when the current owner removes themselves from
+     * the member list — this is how the group survives the owner leaving. Only fires when the
+     * owner is gone from {@code newMembers} and the client-requested new owner is actually one
+     * of the members left behind; an owner who stays in the group keeps ownership regardless
+     * of what {@code requestedOwnerId} says.
+     */
+    private void transferOwnershipIfNeeded(GroupHabit existing, Long currentOwnerId, String requestedOwnerId,
+            List<GroupHabitDto.MemberDto> newMembers) {
+        String ownerIdStr = String.valueOf(currentOwnerId);
+        boolean ownerStillMember = newMembers.stream().anyMatch(m -> ownerIdStr.equals(m.getId()));
+        if (ownerStillMember || requestedOwnerId == null || requestedOwnerId.isBlank()) {
+            return;
+        }
+
+        boolean requestedIsRemainingMember = newMembers.stream().anyMatch(m -> requestedOwnerId.equals(m.getId()));
+        if (!requestedIsRemainingMember) {
+            return;
+        }
+
         try {
-            existing.setMembersJson(objectMapper.writeValueAsString(dto.getMembers()));
+            existing.setStudentId(Long.parseLong(requestedOwnerId));
+        } catch (NumberFormatException ignored) {
+            // Keep the current owner if the requested id isn't a valid student id.
+        }
+    }
+
+    /**
+     * A non-owner member's only allowed membership change is removing themselves. Any other
+     * shape of member-list edit from a non-owner is discarded and the current list is kept.
+     */
+    private List<GroupHabitDto.MemberDto> applySelfLeaveOnly(
+            List<GroupHabitDto.MemberDto> currentMembers, List<GroupHabitDto.MemberDto> requestedMembers, String selfId) {
+        if (requestedMembers == null) {
+            return currentMembers;
+        }
+
+        boolean selfRemoved = requestedMembers.stream().noneMatch(m -> selfId.equals(m.getId()));
+        boolean othersUnchanged = requestedMembers.size() == currentMembers.size() - 1
+                && currentMembers.stream()
+                        .filter(m -> !selfId.equals(m.getId()))
+                        .allMatch(cm -> requestedMembers.stream().anyMatch(rm -> cm.getId() != null && cm.getId().equals(rm.getId())));
+
+        return selfRemoved && othersUnchanged ? requestedMembers : currentMembers;
+    }
+
+    private List<String> sanitizeDates(List<String> dates) {
+        if (dates == null) {
+            return new ArrayList<>();
+        }
+        return dates.stream().filter(d -> d != null && !d.isBlank()).distinct().collect(Collectors.toList());
+    }
+
+    private void writeMembers(GroupHabit existing, List<GroupHabitDto.MemberDto> members) {
+        try {
+            existing.setMembersJson(objectMapper.writeValueAsString(members));
         } catch (JsonProcessingException e) {
             existing.setMembersJson("[]");
         }
+    }
+
+    private void persistProgress(GroupHabit existing, Map<String, List<String>> memberProgress) {
         try {
-            Map<String, List<String>> memberProgress = normalizeMemberProgress(
-                    dto.getMemberProgress() != null ? dto.getMemberProgress() : readMemberProgress(existing.getMemberProgressJson()));
             existing.setMemberProgressJson(objectMapper.writeValueAsString(memberProgress));
             existing.setCompletedDatesJson(objectMapper.writeValueAsString(flattenMemberProgress(memberProgress)));
         } catch (JsonProcessingException e) {
             existing.setCompletedDatesJson("[]");
             existing.setMemberProgressJson("{}");
         }
-        return ResponseEntity.ok(convertToDto(groupHabitRepository.save(existing)));
+    }
+
+    private List<GroupHabitDto.MemberDto> readMembers(String json) {
+        try {
+            if (json == null || json.isBlank()) {
+                return new ArrayList<>();
+            }
+            List<GroupHabitDto.MemberDto> members = objectMapper.readValue(json,
+                    objectMapper.getTypeFactory().constructCollectionType(List.class, GroupHabitDto.MemberDto.class));
+            return members != null ? members : new ArrayList<>();
+        } catch (Exception e) {
+            return new ArrayList<>();
+        }
     }
 
     /**
@@ -228,11 +342,26 @@ public class GroupHabitController {
                 logger.info("User {} already a member of group", studentId);
             }
 
-            return ResponseEntity.ok(convertToDto(existing));
+            return ResponseEntity.ok(convertToDto(existing, studentId));
         } catch (Exception e) {
             logger.error("Error joining group: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
+    }
+
+    /**
+     * Emails a group-habit invite to the given address. The invite message (group name,
+     * habit name, sender's name, invite link/code) is generated entirely server-side —
+     * the caller only supplies the recipient's email.
+     */
+    @PostMapping("/{groupHabitId}/invite")
+    public ResponseEntity<Void> inviteByEmail(
+            @AuthenticationPrincipal Long authStudentId,
+            @PathVariable @NonNull Long groupHabitId,
+            @RequestBody GroupHabitInviteRequest request) {
+        logger.info("POST /api/students/{}/group-habits/{}/invite", authStudentId, groupHabitId);
+        groupHabitInviteService.sendInvite(authStudentId, groupHabitId, request == null ? null : request.getEmail());
+        return ResponseEntity.ok().build();
     }
 
     /**
@@ -268,6 +397,20 @@ public class GroupHabitController {
         }
 
         return entity;
+    }
+
+    /**
+     * Converts a database entity to a DTO, hiding the invite link and code from anyone but the
+     * owner — members shouldn't be able to see or re-share them.
+     */
+    private GroupHabitDto convertToDto(GroupHabit entity, Long requestingStudentId) {
+        GroupHabitDto dto = convertToDto(entity);
+        boolean isOwner = requestingStudentId != null && requestingStudentId.equals(entity.getStudentId());
+        if (!isOwner) {
+            dto.setInviteLink(null);
+            dto.setCode(null);
+        }
+        return dto;
     }
 
     /**
