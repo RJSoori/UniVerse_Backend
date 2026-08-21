@@ -2,6 +2,7 @@ package com.example.backend_service.jobhub.model;
 
 import com.example.backend_service.jobhub.enums.JobStatus;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -9,7 +10,10 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
+
+import java.time.Instant;
 
 @Entity
 public class Job {
@@ -18,17 +22,71 @@ public class Job {
     private Long id;
 
     private String title;
+
+    // Free-text fields backed by multi-line Textareas in the posting form - the default
+    // VARCHAR(255) silently rejected any real-world description/requirements/skills list
+    // longer than 255 characters (MysqlDataTruncation), so posting failed for most genuine
+    // job descriptions.
+    @Lob
+    @Column(columnDefinition = "TEXT")
     private String description;
+
+    @Lob
+    @Column(columnDefinition = "TEXT")
     private String requirements;
+
+    @Lob
+    @Column(columnDefinition = "TEXT")
     private String skills;
+
     private String salaryInfo;
     private String workType;
     private String employmentType;
     private String postedAt;
-    private String externalApplicationUrl; 
+    private String externalApplicationUrl;
+
+    /**
+     * Real creation timestamp, set once at posting time - independent of {@link #postedAt},
+     * which is a recruiter-typed free-text display string (e.g. "today", "2 days ago") that
+     * can't be trusted for date-range filtering. Powers the Market Trend feature's "past 3
+     * months" window. Jobs posted before this field existed are simply null and are excluded
+     * from that window by ordinary SQL comparison semantics - no backfill needed.
+     */
+    private Instant createdAt;
 
     @Enumerated(EnumType.STRING)
     private JobStatus status = JobStatus.PENDING;
+
+    /**
+     * Recruiter-controlled visibility, independent of the admin-controlled {@link #status}.
+     * A job only shows up on the student side ({@code GET /api/jobs/all}) when it is both
+     * APPROVED and active - the recruiter can deactivate/reactivate it anytime without losing
+     * the posting or needing re-approval.
+     */
+    private boolean active = true;
+
+    /**
+     * Soft-delete flag. "Deleting" a posting never removes the row - the title and skills
+     * keep contributing to the UniVerse Skill Matcher's suggested-skills signal even after the
+     * recruiter deletes it, per product decision. Deleting also forces {@link #active} false,
+     * so it's excluded from both the recruiter's own dashboard list and student browsing.
+     */
+    private boolean deleted = false;
+
+    /**
+     * Set when a student reports this posting. Forces {@link #active} false (hidden from
+     * student browsing) until an admin dismisses the report (clears this, restores active) or
+     * blocks the posting ({@link #blocked} instead). The recruiter can see the posting is under
+     * investigation but cannot reactivate it themselves while this is true.
+     */
+    private boolean underReview = false;
+
+    /**
+     * Set by an admin after upholding a report. Permanent (short of a future manual admin
+     * action) - unlike {@link #underReview}, the recruiter can never toggle this posting back
+     * active themselves.
+     */
+    private boolean blocked = false;
 
     @ManyToOne
     @JoinColumn(name = "recruiter_id")
@@ -57,8 +115,18 @@ public class Job {
     public void setPostedAt(String postedAt) { this.postedAt = postedAt; }
     public String getExternalApplicationUrl() { return externalApplicationUrl; }
     public void setExternalApplicationUrl(String externalApplicationUrl) { this.externalApplicationUrl = externalApplicationUrl; }
+    public Instant getCreatedAt() { return createdAt; }
+    public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
     public JobStatus getStatus() { return status; }
     public void setStatus(JobStatus status) { this.status = status; }
+    public boolean isActive() { return active; }
+    public void setActive(boolean active) { this.active = active; }
+    public boolean isDeleted() { return deleted; }
+    public void setDeleted(boolean deleted) { this.deleted = deleted; }
+    public boolean isUnderReview() { return underReview; }
+    public void setUnderReview(boolean underReview) { this.underReview = underReview; }
+    public boolean isBlocked() { return blocked; }
+    public void setBlocked(boolean blocked) { this.blocked = blocked; }
     public Recruiter getRecruiter() { return recruiter; }
     public void setRecruiter(Recruiter recruiter) { this.recruiter = recruiter; }
 }

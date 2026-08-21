@@ -59,7 +59,15 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 token = header.substring(7);
             }
         }
-        if (token != null) {
+        // Only attempt student auth if nothing has already authenticated this request - the
+        // student cookie is sent on every request regardless of intent (apiFetch always sets
+        // credentials: "include"), so without this guard a recruiter/seller portal request that
+        // happens to also carry a valid, unrelated student session cookie would have that
+        // cookie silently win the identity slot before RecruiterJwtAuthFilter/SellerJwtAuthFilter
+        // ever get a chance to check their own (perfectly valid) token - denying the request
+        // with 403 for lacking the right role, intermittently, depending only on whether that
+        // stray student cookie happened to still be valid at that moment.
+        if (token != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             try {
                 JwtService.ParsedToken parsed = jwtService.parse(token);
                 var auth = new UsernamePasswordAuthenticationToken(

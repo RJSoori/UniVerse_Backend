@@ -63,6 +63,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/marketplace/sellers/email/verify-code").permitAll()
                         // Public job browsing
                         .requestMatchers(HttpMethod.GET, "/api/jobs/all").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/jobs/market-trend").permitAll()
                         // Recruiter registration and login
                         .requestMatchers(HttpMethod.POST, "/api/jobs/recruiters").permitAll()
                         .requestMatchers("/api/jobs/recruiters/login").permitAll()
@@ -76,15 +77,27 @@ public class SecurityConfig {
                         // GPA health check
                         .requestMatchers("/api/gpa/health").permitAll()
                         .requestMatchers("/error").permitAll()
+                        // Recruiter self-service profile (Portal Settings)
+                        .requestMatchers(HttpMethod.GET, "/api/jobs/recruiters/me").hasRole("RECRUITER")
+                        .requestMatchers(HttpMethod.PUT, "/api/jobs/recruiters/me").hasRole("RECRUITER")
                         // Recruiter-only job actions
                         .requestMatchers(HttpMethod.POST, "/api/jobs/post").hasRole("RECRUITER")
+                        .requestMatchers(HttpMethod.GET, "/api/jobs/recruiters/*/jobs").hasRole("RECRUITER")
+                        .requestMatchers(HttpMethod.PATCH, "/api/jobs/recruiters/*/jobs/*/active").hasRole("RECRUITER")
+                        .requestMatchers(HttpMethod.PUT, "/api/jobs/recruiters/*/jobs/*").hasRole("RECRUITER")
                         .requestMatchers(HttpMethod.DELETE, "/api/jobs/recruiters/*/jobs/*").hasRole("RECRUITER")
                         // Everything else requires a student JWT
                         .anyRequest().authenticated())
-                .addFilterBefore(recruiterJwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
-                .addFilterBefore(sellerJwtAuthFilter, RecruiterJwtAuthFilter.class)
-                .addFilterBefore(jwtAuthFilter, SellerJwtAuthFilter.class)
-                .addFilterBefore(rateLimitFilter, JwtAuthFilter.class);
+                // Order matters: recruiter/seller tokens are explicit, single-purpose headers a
+                // caller deliberately attaches, whereas the student auth_token cookie rides along
+                // on every request regardless of intent (apiFetch always sends credentials:
+                // "include"). Recruiter/seller must get first claim on the identity slot - each
+                // guards on "nothing has authenticated yet" - so a stray valid student cookie on a
+                // recruiter/seller-portal request can never pre-empt that request's own token.
+                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(sellerJwtAuthFilter, JwtAuthFilter.class)
+                .addFilterBefore(recruiterJwtAuthFilter, SellerJwtAuthFilter.class)
+                .addFilterBefore(rateLimitFilter, RecruiterJwtAuthFilter.class);
         return http.build();
     }
 }
