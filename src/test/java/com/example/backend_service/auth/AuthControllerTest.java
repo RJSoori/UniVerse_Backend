@@ -26,6 +26,7 @@ import com.example.backend_service.StudentRepository;
 import com.example.backend_service.auth.dto.AuthResponse;
 import com.example.backend_service.auth.dto.LoginRequest;
 import com.example.backend_service.auth.dto.RegisterRequest;
+import com.example.backend_service.auth.dto.UpdateEmailRequest;
 import com.example.backend_service.auth.dto.UpdateProfileRequest;
 import com.example.backend_service.auth.dto.UserDto;
 import com.example.backend_service.auth.service.StudentEmailVerificationService;
@@ -125,12 +126,52 @@ class AuthControllerTest {
         saved.setCreatedAt(LocalDateTime.of(2025, 1, 1, 0, 0, 0));
 
         when(studentRepository.findById(7L)).thenReturn(Optional.of(saved));
+        when(studentRepository.save(any(Student.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        ResponseEntity<UserDto> response = controller.updateMe(7L, new UpdateProfileRequest("Nina New", "IT"));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody()).isEqualTo(new UserDto(7L, "nina", "Nina New", "nina@example.com", "IT", null, Role.STUDENT, LocalDateTime.of(2025, 1, 1, 0, 0, 0)));
+    }
+
+    @Test
+    void updateEmail_changesEmailAfterVerification() {
+        Student saved = new Student();
+        saved.setId(7L);
+        saved.setUsername("nina");
+        saved.setName("Nina");
+        saved.setEmail("nina@example.com");
+        saved.setDegree("CS");
+        saved.setRole(Role.STUDENT);
+        saved.setCreatedAt(LocalDateTime.of(2025, 1, 1, 0, 0, 0));
+
+        when(studentRepository.findById(7L)).thenReturn(Optional.of(saved));
         when(studentRepository.existsByEmail("nina.new@example.com")).thenReturn(false);
         when(studentRepository.save(any(Student.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        ResponseEntity<UserDto> response = controller.updateMe(7L, new UpdateProfileRequest("Nina New", "nina.new@example.com", "IT"));
+        ResponseEntity<UserDto> response = controller.updateEmail(7L, new UpdateEmailRequest("nina.new@example.com", "verify-token"));
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).isEqualTo(new UserDto(7L, "nina", "Nina New", "nina.new@example.com", "IT", null, Role.STUDENT, LocalDateTime.of(2025, 1, 1, 0, 0, 0)));
+        assertThat(response.getBody()).isEqualTo(new UserDto(7L, "nina", "Nina", "nina.new@example.com", "CS", null, Role.STUDENT, LocalDateTime.of(2025, 1, 1, 0, 0, 0)));
+        verify(studentEmailVerificationService).consumeVerification("nina.new@example.com", "verify-token");
+    }
+
+    @Test
+    void updateEmail_rejectsAlreadyRegisteredEmail() {
+        Student saved = new Student();
+        saved.setId(7L);
+        saved.setUsername("nina");
+        saved.setEmail("nina@example.com");
+        saved.setRole(Role.STUDENT);
+
+        when(studentRepository.findById(7L)).thenReturn(Optional.of(saved));
+        when(studentRepository.existsByEmail("taken@example.com")).thenReturn(true);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+                        controller.updateEmail(7L, new UpdateEmailRequest("taken@example.com", "verify-token")))
+                .isInstanceOf(com.example.backend_service.common.exception.ConflictException.class);
+
+        verify(studentEmailVerificationService, never()).consumeVerification(any(), any());
+        verify(studentRepository, never()).save(any());
     }
 }

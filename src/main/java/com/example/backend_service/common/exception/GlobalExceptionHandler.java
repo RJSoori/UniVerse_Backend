@@ -10,6 +10,8 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 
+import com.example.backend_service.common.email.EmailService;
+
 @ControllerAdvice
 public class GlobalExceptionHandler {
 
@@ -39,6 +41,18 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BadRequestException.class)
     public ResponseEntity<Map<String, String>> handleBadRequest(BadRequestException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("error", ex.getMessage()));
+    }
+
+    /**
+     * SMTP send failures (bad credentials, unreachable host, etc.) land here instead of the
+     * generic handler below, so callers get a distinct, actionable message rather than
+     * "An unexpected error occurred" for what is usually a mail-server config problem. The
+     * underlying cause is already logged with a stack trace inside EmailService itself.
+     */
+    @ExceptionHandler(EmailService.EmailDeliveryException.class)
+    public ResponseEntity<Map<String, String>> handleEmailDeliveryFailure(EmailService.EmailDeliveryException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                .body(Map.of("error", "Could not send the email right now. Please try again shortly."));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

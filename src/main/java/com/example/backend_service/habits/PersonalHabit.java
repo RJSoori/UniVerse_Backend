@@ -1,6 +1,7 @@
 package com.example.backend_service.habits;
 
 import jakarta.persistence.*;
+import java.time.LocalDateTime;
 
 /**
  * Database entity for habit data.
@@ -35,6 +36,14 @@ public class PersonalHabit {
     @Column(name = "completed_dates_json", columnDefinition = "LONGTEXT")
     private String completedDatesJson;
 
+    @Column(name = "created_at", columnDefinition = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+    private LocalDateTime createdAt;
+
+    @PrePersist
+    protected void onCreate() {
+        createdAt = LocalDateTime.now();
+    }
+
     public PersonalHabit() {}
 
     public Long getId() { return id; }
@@ -66,4 +75,7 @@ public class PersonalHabit {
      */
     public String getCompletedDatesJson() { return completedDatesJson; }
     public void setCompletedDatesJson(String completedDatesJson) { this.completedDatesJson = completedDatesJson; }
+
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 }

@@ -7,6 +7,7 @@ import com.example.backend_service.StudentRepository;
 import com.example.backend_service.auth.dto.AuthResponse;
 import com.example.backend_service.auth.dto.LoginRequest;
 import com.example.backend_service.auth.dto.RegisterRequest;
+import com.example.backend_service.auth.dto.UpdateEmailRequest;
 import com.example.backend_service.auth.dto.UpdateProfileRequest;
 import com.example.backend_service.auth.dto.UserDto;
 import com.example.backend_service.auth.service.StudentEmailVerificationService;
@@ -180,14 +181,30 @@ public class AuthController {
                                             @Valid @RequestBody UpdateProfileRequest req) {
         Student s = studentRepository.findById(authStudentId)
                 .orElseThrow(NotFoundException::new);
-        if (req.email() != null && !req.email().equals(s.getEmail())) {
-            if (studentRepository.existsByEmail(req.email())) {
-                throw new ConflictException("Email already registered");
-            }
-            s.setEmail(req.email());
-        }
         if (req.name() != null) s.setName(req.name());
         if (req.degree() != null) s.setDegree(req.degree());
+        Student saved = studentRepository.save(s);
+        return ResponseEntity.ok(UserDto.from(saved));
+    }
+
+    @PutMapping("/me/email")
+    public ResponseEntity<UserDto> updateEmail(@AuthenticationPrincipal Long authStudentId,
+                                               @Valid @RequestBody UpdateEmailRequest req) {
+        Student s = studentRepository.findById(authStudentId)
+                .orElseThrow(NotFoundException::new);
+        String newEmail = req.email().trim().toLowerCase();
+        if (newEmail.equals(s.getEmail())) {
+            return ResponseEntity.ok(UserDto.from(s));
+        }
+        if (studentRepository.existsByEmail(newEmail)) {
+            throw new ConflictException("Email already registered");
+        }
+        // Only allowed once ownership of the new address has been proven via the
+        // send-code/verify-code pair, mirroring register()'s use of the same service.
+        studentEmailVerificationService.consumeVerification(newEmail, req.emailVerificationToken());
+        // Overwriting the column is the only place the old email is stored, so this
+        // frees it up for reuse elsewhere immediately.
+        s.setEmail(newEmail);
         Student saved = studentRepository.save(s);
         return ResponseEntity.ok(UserDto.from(saved));
     }
