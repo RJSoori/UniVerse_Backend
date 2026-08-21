@@ -6,6 +6,9 @@ import com.example.backend_service.marketplace.enums.ItemType;
 
 import jakarta.persistence.*;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * Represents an item listed in the marketplace.
  * Stores item details including name, description, price, condition, and type (sell or rent).
@@ -40,7 +43,49 @@ public class MarketplaceItem {
     @Column(nullable = false)
     private ItemStatus status = ItemStatus.ACTIVE;
 
+    // Remembers the status this item had right before its seller was banned (ACTIVE,
+    // SOLD, or RENTED), so lifting the ban can restore it correctly instead of just
+    // resetting everything to ACTIVE. Null except while status == SELLER_BANNED.
+    @Enumerated(EnumType.STRING)
+    private ItemStatus previousStatus;
+
+    // Legacy single-image field, kept as the "primary" photo for backward compatibility
+    // with anywhere the app just needs one thumbnail. Always mirrors imageUrls.get(0).
     private String imageUrl;
+
+    // Full photo set for the listing (2-8 photos, enforced by the seller-facing upload
+    // flow — not by the database). Ordered by upload order.
+    @ElementCollection
+    @CollectionTable(name = "marketplace_item_images", joinColumns = @JoinColumn(name = "item_id"))
+    @Column(name = "image_url", nullable = false, length = 1000)
+    @OrderColumn(name = "display_order")
+    private List<String> imageUrls = new ArrayList<>();
+
+    // Free-text category (e.g. "Textbooks & Notes"), matching a fixed list of choices
+    // on the frontend. Stored as a plain string rather than a native enum column so the
+    // category list can change without a schema migration.
+    private String category;
+
+    // How many times this item's detail view has been fetched. Drives "Trending Items".
+    // Explicit DEFAULT so adding this column to the existing (non-empty) table doesn't
+    // trip MySQL strict mode's "no default value" rejection.
+    @Column(nullable = false, columnDefinition = "BIGINT DEFAULT 0")
+    private long viewCount = 0;
+
+    // How many identical units this listing represents, and how many of those have been
+    // sold/rented out so far (recorded by the seller — there's no in-app checkout, so
+    // this can't be tracked automatically). Available units = totalUnits - soldUnits;
+    // once that hits zero the item's status flips to SOLD or RENTED.
+    @Column(nullable = false, columnDefinition = "INT DEFAULT 1")
+    private int totalUnits = 1;
+    @Column(nullable = false, columnDefinition = "INT DEFAULT 0")
+    private int soldUnits = 0;
+
+    // Cumulative count of times this listing has been rented out. Unlike soldUnits (which
+    // resets to 0 when reopenForRent makes the listing available again), this never resets
+    // — re-renting the same listing counts as a new rental for reporting purposes.
+    @Column(nullable = false, columnDefinition = "INT DEFAULT 0")
+    private int timesRented = 0;
 
     @ManyToOne
     @JoinColumn(name = "seller_id")
@@ -62,8 +107,22 @@ public class MarketplaceItem {
     public void setCondition(ItemCondition condition) { this.condition = condition; }
     public ItemStatus getStatus() { return status; }
     public void setStatus(ItemStatus status) { this.status = status; }
+    public ItemStatus getPreviousStatus() { return previousStatus; }
+    public void setPreviousStatus(ItemStatus previousStatus) { this.previousStatus = previousStatus; }
     public String getImageUrl() { return imageUrl; }
     public void setImageUrl(String imageUrl) { this.imageUrl = imageUrl; }
+    public List<String> getImageUrls() { return imageUrls; }
+    public void setImageUrls(List<String> imageUrls) { this.imageUrls = imageUrls; }
+    public String getCategory() { return category; }
+    public void setCategory(String category) { this.category = category; }
+    public long getViewCount() { return viewCount; }
+    public void setViewCount(long viewCount) { this.viewCount = viewCount; }
+    public int getTotalUnits() { return totalUnits; }
+    public void setTotalUnits(int totalUnits) { this.totalUnits = totalUnits; }
+    public int getSoldUnits() { return soldUnits; }
+    public void setSoldUnits(int soldUnits) { this.soldUnits = soldUnits; }
+    public int getTimesRented() { return timesRented; }
+    public void setTimesRented(int timesRented) { this.timesRented = timesRented; }
     public Seller getSeller() { return seller; }
     public void setSeller(Seller seller) { this.seller = seller; }
 }

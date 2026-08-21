@@ -15,6 +15,12 @@ public class SellerResponse {
     private String description;
     private String status;
     private LocalDateTime registeredAt;
+    private String shopLogoUrl;
+    private boolean notifyNewMessage;
+    private boolean notifyNewOffer;
+    private boolean notifyListingExpiry;
+    private boolean notifyPlatformUpdates;
+    private boolean banned;
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -30,4 +36,16 @@ public class SellerResponse {
     public void setStatus(String status) { this.status = status; }
     public LocalDateTime getRegisteredAt() { return registeredAt; }
     public void setRegisteredAt(LocalDateTime registeredAt) { this.registeredAt = registeredAt; }
+    public String getShopLogoUrl() { return shopLogoUrl; }
+    public void setShopLogoUrl(String shopLogoUrl) { this.shopLogoUrl = shopLogoUrl; }
+    public boolean isNotifyNewMessage() { return notifyNewMessage; }
+    public void setNotifyNewMessage(boolean notifyNewMessage) { this.notifyNewMessage = notifyNewMessage; }
+    public boolean isNotifyNewOffer() { return notifyNewOffer; }
+    public void setNotifyNewOffer(boolean notifyNewOffer) { this.notifyNewOffer = notifyNewOffer; }
+    public boolean isNotifyListingExpiry() { return notifyListingExpiry; }
+    public void setNotifyListingExpiry(boolean notifyListingExpiry) { this.notifyListingExpiry = notifyListingExpiry; }
+    public boolean isNotifyPlatformUpdates() { return notifyPlatformUpdates; }
+    public void setNotifyPlatformUpdates(boolean notifyPlatformUpdates) { this.notifyPlatformUpdates = notifyPlatformUpdates; }
+    public boolean isBanned() { return banned; }
+    public void setBanned(boolean banned) { this.banned = banned; }
 }

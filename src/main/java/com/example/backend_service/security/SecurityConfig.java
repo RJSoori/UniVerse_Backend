@@ -55,6 +55,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/auth/email/verify-code").permitAll()
                         // Seller auth (marketplace)
                         .requestMatchers("/api/marketplace/sellers/register", "/api/marketplace/sellers/login").permitAll()
+                        // Public marketplace browsing — items, single item, a seller's items, and a
+                        // seller's public profile don't require a student/seller login to view.
+                        .requestMatchers(HttpMethod.GET, "/api/marketplace/items", "/api/marketplace/items/*",
+                                "/api/marketplace/items/seller/*", "/api/marketplace/sellers/*").permitAll()
                         // Seller forgot-password / signup email verification
                         .requestMatchers(HttpMethod.POST, "/api/marketplace/sellers/forgot-password").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/marketplace/sellers/verify-reset-code").permitAll()
