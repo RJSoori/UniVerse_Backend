@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
+import java.time.LocalDate;
 
 @RestController
 public class ScheduleController {
@@ -31,6 +32,7 @@ public class ScheduleController {
             @AuthenticationPrincipal Long authStudentId,
             @RequestBody ScheduleEvent event) {
         logger.info("POST /api/students/{}/schedule - creating event: {}", authStudentId, event.getTitle());
+        validateEventDate(event.getDate());
         event.setStudentId(authStudentId);
         event.setId(null);
         ScheduleEvent saved = repository.save(event);
@@ -53,6 +55,7 @@ public class ScheduleController {
             logger.warn("Authorization check failed: studentId mismatch");
             return ResponseEntity.status(403).build();
         }
+        validateEventDate(update.getDate());
         ev.setTitle(update.getTitle());
         ev.setDate(update.getDate());
         ev.setStartTime(update.getStartTime());
@@ -62,6 +65,12 @@ public class ScheduleController {
         ScheduleEvent saved = repository.save(ev);
         logger.info("Event updated: id={}", saved.getId());
         return ResponseEntity.ok(saved);
+    }
+
+    private void validateEventDate(LocalDate date) {
+        if (date != null && date.isBefore(LocalDate.now())) {
+            throw new IllegalArgumentException("date cannot be in the past");
+        }
     }
 
     @DeleteMapping("/api/students/{studentId}/schedule/{id}")

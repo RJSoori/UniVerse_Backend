@@ -100,6 +100,7 @@ public class PersonalHabitController {
         dto.setIconId(entity.getIconId());
         dto.setCategory(entity.getCategory());
         dto.setFocusArea(entity.getFocusArea());
+        dto.setCreatedAt(entity.getCreatedAt() != null ? entity.getCreatedAt().toString() : null);
         try {
             dto.setCompletedDates(objectMapper.readValue(
                     entity.getCompletedDatesJson(),
