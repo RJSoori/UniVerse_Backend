@@ -238,7 +238,11 @@ public class GPACalculatorController {
         subjectRepository.findById(subjectId)
                 .filter(s -> s.getSemester().getStudentId().equals(authStudentId))
                 .orElseThrow(NotFoundException::new);
-        subjectRepository.deleteById(subjectId);
+        // Not subjectRepository.deleteById() - see the Javadoc on deleteByIdImmediate() for why
+        // that silently fails to persist here (the ownership check above eagerly loads the
+        // parent semester's whole subjects collection into the same request-scoped persistence
+        // context, which then fights the entity-level delete at flush time).
+        subjectRepository.deleteByIdImmediate(subjectId);
         log.info("student={} deleted subject id={}", authStudentId, subjectId);
         return ResponseEntity.noContent().build();
     }
