@@ -314,7 +314,12 @@ public class JobHubController {
         job.setRecruiter(recruiter);
         job.setStatus(JobStatus.APPROVED);
         job.setCreatedAt(Instant.now());
-        return jobRepository.save(job);
+        Job saved = jobRepository.save(job);
+        // A new posting can change Market Trend's counts (including merging into an existing
+        // canonical group) - without this the cached result would keep serving the pre-posting
+        // answer for up to CACHE_TTL.
+        marketTrendService.invalidate();
+        return saved;
     }
 
     @GetMapping("/all")
@@ -362,6 +367,8 @@ public class JobHubController {
         job.setWorkType(request.workType());
         job.setEmploymentType(request.employmentType());
         Job saved = jobRepository.save(job);
+        // A title edit can change which Market Trend group this posting belongs to.
+        marketTrendService.invalidate();
         log.info("Job updated: id={}", jobId);
         return saved;
     }
@@ -446,6 +453,8 @@ public class JobHubController {
         job.setDeleted(true);
         job.setActive(false);
         jobRepository.save(job);
+        // A deleted posting must stop counting towards Market Trend.
+        marketTrendService.invalidate();
         log.info("Job soft-deleted: id={}", jobId);
     }
 
@@ -499,6 +508,8 @@ public class JobHubController {
         job.setBlocked(true);
         job.setActive(false);
         Job saved = jobRepository.save(job);
+        // A blocked posting must stop counting towards Market Trend.
+        marketTrendService.invalidate();
         log.info("Job blocked following report(s): jobId={}", jobId);
         return saved;
     }

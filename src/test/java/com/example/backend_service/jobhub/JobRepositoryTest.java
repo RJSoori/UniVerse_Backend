@@ -11,8 +11,7 @@ import com.example.backend_service.jobhub.model.Recruiter;
 import com.example.backend_service.jobhub.repository.JobRepository;
 import com.example.backend_service.jobhub.repository.RecruiterRepository;
 
-// TODO: Configure @DataJpaTest with proper test container setup
-// @DataJpaTest
+
 public class JobRepositoryTest {
 
     @Autowired

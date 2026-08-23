@@ -6,6 +6,7 @@ import com.example.backend_service.jobhub.controller.JobHubController;
 import com.example.backend_service.jobhub.dto.JobRequest;
 import com.example.backend_service.jobhub.dto.JobReportRequest;
 import com.example.backend_service.jobhub.dto.JobUpdateRequest;
+import com.example.backend_service.jobhub.dto.MarketTrendEntry;
 import com.example.backend_service.jobhub.dto.RecruiterProfileResponse;
 import com.example.backend_service.jobhub.enums.JobStatus;
 import com.example.backend_service.jobhub.model.Job;
@@ -14,6 +15,7 @@ import com.example.backend_service.jobhub.model.Recruiter;
 import com.example.backend_service.jobhub.repository.JobReportRepository;
 import com.example.backend_service.jobhub.repository.JobRepository;
 import com.example.backend_service.jobhub.repository.RecruiterRepository;
+import com.example.backend_service.jobhub.service.MarketTrendService;
 import com.example.backend_service.jobhub.service.RecruiterJwtService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
@@ -54,6 +56,7 @@ public class JobHubControllerTest {
     private JobRepository jobRepository;
     private JobReportRepository jobReportRepository;
     private RecruiterRepository recruiterRepository;
+    private MarketTrendService marketTrendService;
     private JobHubController controller;
     private MockMvc mockMvc;
     private ObjectMapper mapper = new ObjectMapper();
@@ -63,11 +66,13 @@ public class JobHubControllerTest {
         jobRepository = Mockito.mock(JobRepository.class);
         jobReportRepository = Mockito.mock(JobReportRepository.class);
         recruiterRepository = Mockito.mock(RecruiterRepository.class);
+        marketTrendService = Mockito.mock(MarketTrendService.class);
         controller = new JobHubController();
         // inject mocks via reflection since controller uses field injection
         com.example.backend_service.TestUtils.setField(controller, "jobRepository", jobRepository);
         com.example.backend_service.TestUtils.setField(controller, "jobReportRepository", jobReportRepository);
         com.example.backend_service.TestUtils.setField(controller, "recruiterRepository", recruiterRepository);
+        com.example.backend_service.TestUtils.setField(controller, "marketTrendService", marketTrendService);
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler())
                 // @AuthenticationPrincipal isn't resolved by default outside a real security
@@ -106,6 +111,10 @@ public class JobHubControllerTest {
                 .contentType("application/json")
                 .content(mapper.writeValueAsString(req)))
                 .andExpect(status().isOk());
+
+        // A newly-posted job can change Market Trend's counts - the cache must not keep
+        // serving the pre-posting answer.
+        verify(marketTrendService).invalidate();
     }
 
     @Test
@@ -194,6 +203,8 @@ public class JobHubControllerTest {
         assertThat(job.getDescription()).isEqualTo("new desc");
         assertThat(job.getSkills()).isEqualTo("Java, SQL");
         assertThat(job.getWorkType()).isEqualTo("remote");
+        // A title edit can change which Market Trend group this posting belongs to.
+        verify(marketTrendService).invalidate();
     }
 
     @Test
@@ -217,6 +228,8 @@ public class JobHubControllerTest {
         assertThat(job.isActive()).isFalse();
         verify(jobRepository, never()).delete(any(Job.class));
         verify(jobRepository).save(job);
+        // A deleted posting must stop counting towards Market Trend.
+        verify(marketTrendService).invalidate();
     }
 
     // ---- postJob hard-blocks anything other than VERIFIED ----
@@ -625,6 +638,8 @@ public class JobHubControllerTest {
         assertThat(job.isBlocked()).isTrue();
         assertThat(job.isActive()).isFalse();
         assertThat(report.isResolved()).isTrue();
+        // A blocked posting must stop counting towards Market Trend.
+        verify(marketTrendService).invalidate();
     }
 
     // ---- market trend ----
@@ -634,12 +649,7 @@ public class JobHubControllerTest {
 
     @Test
     void getMarketTrend_delegatesToMarketTrendService() throws Exception {
-        com.example.backend_service.jobhub.service.MarketTrendService marketTrendService =
-                Mockito.mock(com.example.backend_service.jobhub.service.MarketTrendService.class);
-        com.example.backend_service.TestUtils.setField(controller, "marketTrendService", marketTrendService);
-
-        List<com.example.backend_service.jobhub.dto.MarketTrendEntry> trend =
-                List.of(new com.example.backend_service.jobhub.dto.MarketTrendEntry("Software Engineering Intern", 2));
+        List<MarketTrendEntry> trend = List.of(new MarketTrendEntry("Software Engineering Intern", 2));
         when(marketTrendService.getTrend()).thenReturn(trend);
 
         mockMvc.perform(get("/api/jobs/market-trend"))

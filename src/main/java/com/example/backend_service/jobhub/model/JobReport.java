@@ -11,12 +11,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
 
-/**
- * A student's report against a job posting. A posting can accumulate several reports before
- * an admin acts on it - {@link #resolved} flips to true for every open report on the job the
- * moment an admin dismisses the report or blocks the posting (see JobHubController), so
- * "currently under investigation" is always just "any unresolved report exists for this job".
- */
+
 @Entity
 public class JobReport {
     @Id
