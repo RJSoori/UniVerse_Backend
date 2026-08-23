@@ -1,5 +1,7 @@
 package com.example.backend_service.jobhub.model;
 
+import java.time.Instant;
+
 import com.example.backend_service.jobhub.enums.JobStatus;
 
 import jakarta.persistence.Column;
@@ -12,8 +14,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
-
-import java.time.Instant;
 
 @Entity
 public class Job {
@@ -45,47 +45,22 @@ public class Job {
     private String postedAt;
     private String externalApplicationUrl;
 
-    /**
-     * Real creation timestamp, set once at posting time - independent of {@link #postedAt},
-     * which is a recruiter-typed free-text display string (e.g. "today", "2 days ago") that
-     * can't be trusted for date-range filtering. Powers the Market Trend feature's "past 3
-     * months" window. Jobs posted before this field existed are simply null and are excluded
-     * from that window by ordinary SQL comparison semantics - no backfill needed.
-     */
+    
     private Instant createdAt;
 
     @Enumerated(EnumType.STRING)
     private JobStatus status = JobStatus.PENDING;
 
-    /**
-     * Recruiter-controlled visibility, independent of the admin-controlled {@link #status}.
-     * A job only shows up on the student side ({@code GET /api/jobs/all}) when it is both
-     * APPROVED and active - the recruiter can deactivate/reactivate it anytime without losing
-     * the posting or needing re-approval.
-     */
+    
     private boolean active = true;
 
-    /**
-     * Soft-delete flag. "Deleting" a posting never removes the row - the title and skills
-     * keep contributing to the UniVerse Skill Matcher's suggested-skills signal even after the
-     * recruiter deletes it, per product decision. Deleting also forces {@link #active} false,
-     * so it's excluded from both the recruiter's own dashboard list and student browsing.
-     */
+    
     private boolean deleted = false;
 
-    /**
-     * Set when a student reports this posting. Forces {@link #active} false (hidden from
-     * student browsing) until an admin dismisses the report (clears this, restores active) or
-     * blocks the posting ({@link #blocked} instead). The recruiter can see the posting is under
-     * investigation but cannot reactivate it themselves while this is true.
-     */
+    
     private boolean underReview = false;
 
-    /**
-     * Set by an admin after upholding a report. Permanent (short of a future manual admin
-     * action) - unlike {@link #underReview}, the recruiter can never toggle this posting back
-     * active themselves.
-     */
+    
     private boolean blocked = false;
 
     @ManyToOne

@@ -1,34 +1,25 @@
 package com.example.backend_service.jobhub;
 
+import java.time.Instant;
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import static org.mockito.ArgumentMatchers.any;
+import org.mockito.Mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import org.mockito.junit.jupiter.MockitoExtension;
+
 import com.example.backend_service.jobhub.dto.MarketTrendEntry;
 import com.example.backend_service.jobhub.model.Job;
 import com.example.backend_service.jobhub.repository.JobRepository;
 import com.example.backend_service.jobhub.service.MarketTrendService;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.time.Instant;
-import java.util.List;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
-/**
- * Covers everything in MarketTrendService that doesn't require an actual Gemini call - the
- * aggregation, sorting, top-3 limiting, caching, and graceful-degradation logic. The Gemini
- * title-clustering call is deliberately left untested here (this codebase has no HTTP-mocking
- * infra for Gemini calls anywhere, including GeminiSkillExtractionService) - constructing the
- * service with a blank API key exercises the exact same "fall back to exact-title grouping"
- * code path that a real Gemini failure would, without ever attempting a network call. The actual
- * clustering/merge behavior is verified live against the real API (see the session's manual
- * verification notes).
- */
 @ExtendWith(MockitoExtension.class)
 class MarketTrendServiceTest {
 
@@ -120,5 +111,25 @@ class MarketTrendServiceTest {
 
         assertThat(second).isEqualTo(first);
         verify(jobRepository, times(1)).findByCreatedAtAfterAndDeletedFalseAndBlockedFalse(any());
+    }
+
+    @Test
+    void invalidate_forcesRecomputeEvenWithinTtl() {
+        Instant now = Instant.now();
+        // First call sees one posting; invalidate() is meant to model a job being posted/edited/
+        // deleted/blocked right after - the very next getTrend() call must reflect that change
+        // instead of replaying the cached pre-mutation answer for up to CACHE_TTL.
+        when(jobRepository.findByCreatedAtAfterAndDeletedFalseAndBlockedFalse(any()))
+                .thenReturn(List.of(job("Data Analyst", now)))
+                .thenReturn(List.of(job("Data Analyst", now), job("Data Analyst", now)));
+
+        MarketTrendService service = serviceWithNoGeminiKey();
+        List<MarketTrendEntry> beforeInvalidate = service.getTrend();
+        service.invalidate();
+        List<MarketTrendEntry> afterInvalidate = service.getTrend();
+
+        assertThat(beforeInvalidate).containsExactly(new MarketTrendEntry("Data Analyst", 1));
+        assertThat(afterInvalidate).containsExactly(new MarketTrendEntry("Data Analyst", 2));
+        verify(jobRepository, times(2)).findByCreatedAtAfterAndDeletedFalseAndBlockedFalse(any());
     }
 }

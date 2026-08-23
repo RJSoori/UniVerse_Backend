@@ -82,6 +82,19 @@ public class MarketTrendService {
         return cachedResult;
     }
 
+    /**
+     * Drops the cached result so the next {@link #getTrend()} call recomputes from the database
+     * (and re-clusters through Gemini) instead of serving a now-stale answer for up to
+     * {@link #CACHE_TTL}. Callers are the job-mutation endpoints in {@code JobHubController} -
+     * posting, editing the title of, deleting, or admin-blocking a job all change which rows
+     * {@link #computeTrend()} would see, so without this a newly-posted job (even one that
+     * should merge into an existing count) wouldn't be reflected for up to 30 minutes.
+     */
+    public synchronized void invalidate() {
+        cachedResult = null;
+        cachedAt = null;
+    }
+
     private List<MarketTrendEntry> computeTrend() {
         Instant since = ZonedDateTime.now(ZoneOffset.UTC).minusMonths(3).toInstant();
         List<Job> recentJobs = jobRepository.findByCreatedAtAfterAndDeletedFalseAndBlockedFalse(since);
