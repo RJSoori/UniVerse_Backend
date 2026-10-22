@@ -1,0 +1,92 @@
+package com.example.backend_service.jobhub.model;
+
+import com.example.backend_service.RecruiterStatus;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+
+import java.time.Instant;
+
+@Entity
+public class Recruiter {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private String companyName;
+    
+    @Column(unique = true, nullable = false)
+    private String email;
+    private String contactPerson;
+    @JsonIgnore
+    private String password;
+    private String businessRegistrationUrl;
+    private String orgLogoUrl;
+    private String authLetterUrl;
+    // For individuals
+    private String profilePictureUrl;
+    private String idDocumentUrl;
+    private String accountType = "company";
+
+    @Enumerated(EnumType.STRING)
+    private RecruiterStatus status = RecruiterStatus.PENDING;
+
+    // ── Password reset (forgot password flow) ──
+    // Bcrypt hash of the current 6-digit verification code, never stored/returned in plaintext.
+    @JsonIgnore
+    private String resetCodeHash;
+    @JsonIgnore
+    private Instant resetCodeExpiresAt;
+    @JsonIgnore
+    private int resetCodeAttempts = 0;
+    // Bcrypt hash of the short-lived opaque token issued after a code is verified successfully;
+    // required by the final reset-password step so the raw code can't be replayed.
+    @JsonIgnore
+    private String resetTokenHash;
+    @JsonIgnore
+    private Instant resetTokenExpiresAt;
+
+    public Recruiter() {}
+
+    // Getters and Setters
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+    public String getCompanyName() { return companyName; }
+    public void setCompanyName(String companyName) { this.companyName = companyName; }
+    public String getEmail() { return email; }
+    public void setEmail(String email) { this.email = email; }
+    public String getContactPerson() { return contactPerson; }
+    public void setContactPerson(String contactPerson) { this.contactPerson = contactPerson; }
+    public String getPassword() { return password; }
+    public void setPassword(String password) { this.password = password; }
+    public String getBusinessRegistrationUrl() { return businessRegistrationUrl; }
+    public void setBusinessRegistrationUrl(String businessRegistrationUrl) { this.businessRegistrationUrl = businessRegistrationUrl; }
+    public String getOrgLogoUrl() { return orgLogoUrl; }
+    public void setOrgLogoUrl(String orgLogoUrl) { this.orgLogoUrl = orgLogoUrl; }
+    public String getAuthLetterUrl() { return authLetterUrl; }
+    public void setAuthLetterUrl(String authLetterUrl) { this.authLetterUrl = authLetterUrl; }
+    public String getProfilePictureUrl() { return profilePictureUrl; }
+    public void setProfilePictureUrl(String profilePictureUrl) { this.profilePictureUrl = profilePictureUrl; }
+    public String getIdDocumentUrl() { return idDocumentUrl; }
+    public void setIdDocumentUrl(String idDocumentUrl) { this.idDocumentUrl = idDocumentUrl; }
+    public String getAccountType() { return accountType; }
+    public void setAccountType(String accountType) { this.accountType = accountType; }
+    public RecruiterStatus getStatus() { return status; }
+    public void setStatus(RecruiterStatus status) { this.status = status; }
+    public String getResetCodeHash() { return resetCodeHash; }
+    public void setResetCodeHash(String resetCodeHash) { this.resetCodeHash = resetCodeHash; }
+    public Instant getResetCodeExpiresAt() { return resetCodeExpiresAt; }
+    public void setResetCodeExpiresAt(Instant resetCodeExpiresAt) { this.resetCodeExpiresAt = resetCodeExpiresAt; }
+    public int getResetCodeAttempts() { return resetCodeAttempts; }
+    public void setResetCodeAttempts(int resetCodeAttempts) { this.resetCodeAttempts = resetCodeAttempts; }
+    public String getResetTokenHash() { return resetTokenHash; }
+    public void setResetTokenHash(String resetTokenHash) { this.resetTokenHash = resetTokenHash; }
+    public Instant getResetTokenExpiresAt() { return resetTokenExpiresAt; }
+    public void setResetTokenExpiresAt(Instant resetTokenExpiresAt) { this.resetTokenExpiresAt = resetTokenExpiresAt; }
+}

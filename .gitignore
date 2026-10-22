@@ -32,4 +32,12 @@ build/
 ### VS Code ###
 .vscode/
 
+# macOS Finder metadata
+.DS_Store
+**/.DS_Store
+
 .env
+
+# Database dumps containing real PII / plaintext passwords. Never commit.
+universe_db.sql
+*.sql.dump

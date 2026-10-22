@@ -1,0 +1,178 @@
+package com.example.backend_service.skills;
+
+import com.example.backend_service.AzureBlobService;
+import com.example.backend_service.common.exception.BadRequestException;
+import com.example.backend_service.common.exception.ForbiddenException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * A student's Job Hub skills profile: the manually-managed skill list, plus CV upload ->
+ * Gemini extraction that merges newly identified skills into it. Backs job-hub/SkillsManager.tsx,
+ * which previously stored everything in localStorage with a mocked "AI parsing" step.
+ */
+@RestController
+@RequestMapping("/api/skills")
+public class SkillsController {
+
+    private static final Logger log = LoggerFactory.getLogger(SkillsController.class);
+    private static final long MAX_CV_SIZE_BYTES = 10L * 1024 * 1024; // matches AzureBlobService's own cap
+
+    private final StudentSkillProfileRepository repository;
+    private final AzureBlobService azureBlobService;
+    private final GeminiSkillExtractionService extractionService;
+    private final ObjectMapper objectMapper;
+
+    public SkillsController(
+            StudentSkillProfileRepository repository,
+            AzureBlobService azureBlobService,
+            GeminiSkillExtractionService extractionService,
+            ObjectMapper objectMapper) {
+        this.repository = repository;
+        this.azureBlobService = azureBlobService;
+        this.extractionService = extractionService;
+        this.objectMapper = objectMapper;
+    }
+
+    @GetMapping
+    public Map<String, Object> getSkills(@AuthenticationPrincipal Long authStudentId) {
+        StudentSkillProfile profile = findOrCreate(authStudentId);
+        return toResponse(profile);
+    }
+
+    /** Full replace — used by the manual add/remove UI. */
+    @PutMapping
+    public Map<String, Object> replaceSkills(
+            @AuthenticationPrincipal Long authStudentId,
+            @RequestBody List<String> skills) {
+        StudentSkillProfile profile = findOrCreate(authStudentId);
+        writeSkills(profile, normalize(skills));
+        repository.save(profile);
+        log.info("student={} updated skills manually, count={}", authStudentId, readSkills(profile).size());
+        return toResponse(profile);
+    }
+
+    /** Records that the student has read and accepted the CV privacy notice (their CV text is
+     * sent to Google's Gemini API for skill extraction). One-time - never asked again once set. */
+    @PostMapping("/cv-privacy-policy/accept")
+    public Map<String, Object> acceptCvPrivacyPolicy(@AuthenticationPrincipal Long authStudentId) {
+        StudentSkillProfile profile = findOrCreate(authStudentId);
+        profile.setCvPrivacyPolicyAcceptedAt(Instant.now());
+        repository.save(profile);
+        log.info("student={} accepted the CV privacy policy", authStudentId);
+        return toResponse(profile);
+    }
+
+    @PostMapping("/cv")
+    public Map<String, Object> uploadCv(
+            @AuthenticationPrincipal Long authStudentId,
+            @RequestParam("file") MultipartFile file) throws java.io.IOException {
+        StudentSkillProfile profile = findOrCreate(authStudentId);
+        // Hard-blocked server-side, not just hidden in the UI - a student must explicitly accept
+        // that their CV is sent to a third-party AI (Gemini) before we ever do that, every time
+        // they try, until they accept once.
+        if (profile.getCvPrivacyPolicyAcceptedAt() == null) {
+            throw new ForbiddenException("Please review and accept the CV privacy notice before uploading your CV.");
+        }
+        if (file == null || file.isEmpty()) {
+            throw new BadRequestException("Please choose a CV file to upload.");
+        }
+        if (file.getSize() > MAX_CV_SIZE_BYTES) {
+            throw new BadRequestException("File exceeds the maximum allowed size of 10MB.");
+        }
+
+        String resumeText = PdfTextExtractor.extractText(file);
+        List<String> extracted = extractionService.extractSkills(resumeText);
+
+        // Upload after extraction succeeds - no point keeping a CV we couldn't analyze.
+        String cvUrl = azureBlobService.uploadFile(file);
+
+        List<String> existing = readSkills(profile);
+        // Only the subset Gemini found that the student didn't already have - "extracted" is
+        // everything Gemini found in the CV this time, which usually overlaps heavily with
+        // what's already on file.
+        List<String> newlyAdded = extracted.stream()
+                .filter(skill -> existing.stream().noneMatch(s -> s.equalsIgnoreCase(skill)))
+                .distinct()
+                .toList();
+        List<String> merged = mergeSkills(existing, newlyAdded);
+        writeSkills(profile, merged);
+        profile.setCvUrl(cvUrl);
+        profile.setCvUploadedAt(Instant.now());
+        repository.save(profile);
+
+        log.info("student={} uploaded CV, extracted={} newSkills, totalSkills={}",
+                authStudentId, newlyAdded.size(), merged.size());
+
+        Map<String, Object> response = new LinkedHashMap<>(toResponse(profile));
+        response.put("newlyExtracted", newlyAdded);
+        return response;
+    }
+
+    private StudentSkillProfile findOrCreate(Long studentId) {
+        return repository.findByStudentId(studentId).orElseGet(() -> {
+            StudentSkillProfile profile = new StudentSkillProfile();
+            profile.setStudentId(studentId);
+            return repository.save(profile);
+        });
+    }
+
+    private List<String> mergeSkills(List<String> existing, List<String> extracted) {
+        List<String> merged = new ArrayList<>(existing);
+        for (String skill : extracted) {
+            boolean alreadyPresent = merged.stream().anyMatch(s -> s.equalsIgnoreCase(skill));
+            if (!alreadyPresent) {
+                merged.add(skill);
+            }
+        }
+        return merged;
+    }
+
+    private List<String> normalize(List<String> skills) {
+        if (skills == null) {
+            return List.of();
+        }
+        List<String> result = new ArrayList<>();
+        for (String skill : skills) {
+            if (skill == null) {
+                continue;
+            }
+            String trimmed = skill.trim();
+            if (trimmed.isEmpty()) {
+                continue;
+            }
+            boolean alreadyPresent = result.stream().anyMatch(s -> s.equalsIgnoreCase(trimmed));
+            if (!alreadyPresent) {
+                result.add(trimmed);
+            }
+        }
+        return result;
+    }
+
+    private List<String> readSkills(StudentSkillProfile profile) {
+        return SkillsJsonUtil.readSkills(objectMapper, profile.getSkillsJson());
+    }
+
+    private void writeSkills(StudentSkillProfile profile, List<String> skills) {
+        profile.setSkillsJson(SkillsJsonUtil.writeSkills(objectMapper, skills));
+    }
+
+    private Map<String, Object> toResponse(StudentSkillProfile profile) {
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("skills", readSkills(profile));
+        response.put("cvUrl", profile.getCvUrl());
+        response.put("cvUploadedAt", profile.getCvUploadedAt());
+        response.put("cvPrivacyPolicyAccepted", profile.getCvPrivacyPolicyAcceptedAt() != null);
+        return response;
+    }
+}
